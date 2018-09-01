@@ -50,10 +50,7 @@ class Logger(object):
             if not os.path.exists(os.path.join(self.save_dir, create_data)):
                 os.makedirs(os.path.join(self.save_dir, create_data))
             path = os.path.join(self.save_dir, create_data)
-            if not os.path.exists(os.path.join(path, log_type)):
-                os.makedirs(os.path.join(path, log_type))
-            save_time = datetime.datetime.now().strftime("%Y%m%d %H%M%S")
-            with open(os.path.join(path, log_type + '\\' + save_time + '.log'), 'a', encoding='utf-8') as f:
+            with open(os.path.join(path, log_type + '.log'), 'a', encoding='utf-8') as f:
                 f.write(self.msg.format(log_lever, content, log_type, pdduid, creat_time) + '\n')
         except Exception as ex:
             print(ex)
