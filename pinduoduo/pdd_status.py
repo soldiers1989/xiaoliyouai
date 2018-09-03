@@ -12,6 +12,8 @@ from mysql_db import db_query, db_insert
 
 logger = Logger()
 
+"""校验支付状态"""
+
 
 def check_pay(order_sn, pdduid, accesstoken):
     cookie = 'pdd_user_id={}; PDDAccessToken={};'.format(pdduid, accesstoken)
@@ -35,6 +37,9 @@ def check_pay(order_sn, pdduid, accesstoken):
         else:
             logger.log('ERROR', '查询订单[{}]错误'.format(order_sn), 'status', pdduid)
             return '查询订单[{}]错误, 请确认!'.format(order_sn)
+
+
+"""校验订单状态"""
 
 
 def check(result):
@@ -85,14 +90,17 @@ def check(result):
             return
         if i == 5:
             update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            sql = "update order_pdd set status='{}', is_query=0, update_time='{}' where order_sn='{}'".format(status,
+            sql = "update order_pdd set status='{}', is_query=0, update_time='{}' where order_sn='{}'".format('已失效',
                                                                                                               update_time,
                                                                                                               q_order_sn)
             db_insert(sql)
             logger.log('DEBUG', '订单[{}], 设定时间内,支付状态未改变,不在查询此订单'.format(q_order_sn), 'status', pdduid)
             return
         time.sleep(30)
-        logger.log('INFO', '在{}分钟内, 订单: [{}], 支付状态未改变.'.format(i + 1, q_order_sn), 'status', pdduid)
+        logger.log('INFO', '在{}秒内, 订单: [{}], 支付状态未改变.'.format((i + 1) * 30, q_order_sn), 'status', pdduid)
+
+
+"""拼多多校验订单状态入口函数"""
 
 
 def main():
@@ -116,7 +124,7 @@ if __name__ == '__main__':
     while True:
         try:
             main()
-        except:
-            logger.log('ERROR', '程序异常，重启.', 'status', 'Admin')
+        except Exception as ex:
+            logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'status', 'Admin')
             continue
         time.sleep(10)

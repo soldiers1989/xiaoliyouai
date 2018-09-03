@@ -2,7 +2,6 @@
 __author__ = '张全亮'
 import requests
 import urllib3
-import hashlib
 from multiprocessing.dummy import Pool
 
 urllib3.disable_warnings()
@@ -11,6 +10,8 @@ from logger import Logger
 from mysql_db import db_query, db_insert
 
 logger = Logger()
+
+"""自动5星好评"""
 
 
 def evaluation(pdduid, accesstoken, goods_id, order_sn):
@@ -39,7 +40,9 @@ def evaluation(pdduid, accesstoken, goods_id, order_sn):
         return False
 
 
-# 确认收货
+"""自动确认收货"""
+
+
 def confirm_receipt(accesstoken, pdduid, order_sn):
     url = 'https://mobile.yangkeduo.com/proxy/api/order/{}/received?pdduid={}&is_back=1'.format(order_sn, pdduid)
     cookie = 'pdd_user_id={}; PDDAccessToken={};'.format(pdduid, accesstoken)
@@ -54,6 +57,9 @@ def confirm_receipt(accesstoken, pdduid, order_sn):
         return True
     else:
         return False
+
+
+"""校验支付状态"""
 
 
 def check_pay(order_sn, pdduid, accesstoken):
@@ -80,12 +86,52 @@ def check_pay(order_sn, pdduid, accesstoken):
             return '查询订单[{}]错误, 请确认!'.format(order_sn)
 
 
+"""自动发货"""
+
+
+def confirm_delivery(order_sn):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.221 Safari/537.36 SE 2.X MetaSr 1.0",
+        "PASSID": "1b6c49fe5dcf4880b5e284ffbde071cf_229558070_16140335",
+        "Content-Type": "application/json"
+    }
+    data1 = {"orderSn": order_sn, "source": "MMS"}
+    url = 'https://mms.pinduoduo.com/mars/shop/orderDetail'
+    response1 = requests.post(url, json=data1, headers=headers, verify=False)
+    if 'success' in response1.json():
+        url2 = 'https://mms.pinduoduo.com/express_base/shop/orders/shipping'
+        data2 = {"orderShipRequestList": [{"orderSn": order_sn}],
+                 "isSingleShipment": 1,
+                 "overWrite": 1,
+                 "operateFrom": "MMS",
+                 "functionType": 6,
+                 "isVirtualGoods": "true"}
+        response2 = requests.post(url2, json=data2, headers=headers, verify=False)
+        if 'success' in response2.json():
+            logger.log('INFO', '订单:{}已经自动发货了'.format(order_sn), 'receipt', 'Admin')
+            return True
+        else:
+            logger.log('ERROR', '订单: {}发货失败, 请联系管理员'.format(order_sn), 'receipt', 'Admin')
+            return False
+    elif '会话已过期' in response1.json():
+        logger.log('DEBUG', '订单: {}发货失败, 请更新PASSID'.format(order_sn), 'receipt', 'Admin')
+        return False
+    else:
+        logger.log('ERROR', '订单: {}发货失败, 请联系管理员'.format(order_sn), 'receipt', 'Admin')
+        return False
+
+
+"""订单的相关校验"""
+
+
 def check(result):
     logger.log('INFO', '开始校验订单:{}支付状态'.format(result[0]), 'receipt', result[1])
     q_order_sn = result[0]
     pdduid = result[1]
     accesstoken = result[2]
     goods_id = result[3]
+    """自动发货"""
+    confirm_delivery(q_order_sn)
 
     status = check_pay(q_order_sn, pdduid, accesstoken)
     if '待收货' in status and '错误' not in status:
@@ -103,12 +149,13 @@ def check(result):
             logger.log('ERROR', '订单[{}]收货错误'.format(q_order_sn), 'receipt', pdduid)
 
 
+"""拼多多确认收货入口函数"""
+
+
 def main():
     yesterday = datetime.date.today() + datetime.timedelta(-1)
     query_sql = "select order_sn, pdduid, accesstoken, goods_id from order_pdd" \
-                " where status='待发货' and is_query=1 and update_time like '{} %%'".format(yesterday)
-    # query_sql = "select order_sn, pdduid, accesstoken, goods_id from order_pdd" \
-    #             " where status='待发货' and is_query=1 "
+                " where status='待发货' and is_query=1 "
     result = db_query(query_sql)
     logger.log('INFO', '查询数据库符合条件的结果, 共[{}]个'.format(len(result)), 'receipt', 'Admin')
     if len(result) == 0:
@@ -125,8 +172,7 @@ if __name__ == '__main__':
     while True:
         try:
             main()
-        except:
-            logger.log('ERROR', '程序异常，重启.', 'receipt', 'Admin')
+        except Exception as ex:
+            logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'receipt', 'Admin')
             continue
         time.sleep(30)
-        # break

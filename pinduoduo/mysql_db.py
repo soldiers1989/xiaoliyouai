@@ -18,10 +18,9 @@ def db_insert(sql):
         print(sql)
         cursor.execute(sql)
         conn.commit()
-        logger.log("INFO", "数据插入, 更新", "数据库", "Admin")
+        logger.log("INFO", "数据插入, 更新", "mysql", "Admin")
     except Exception as ex:
-        logger.log("ERROR", "数据插入, 更新错误, 原因:{}".format(ex), "数据库", "Admin")
-        print('异常原因{}'.format(ex))
+        logger.log("ERROR", "数据插入, 更新错误, 原因:{}".format(ex), "mysql", "Admin")
         conn.rollback()
     finally:
         cursor.close()
@@ -38,8 +37,7 @@ def db_query(sql):
         logger.log("INFO", "数据查询", "mysql", "Admin")
         return result
     except Exception as ex:
-        logger.log("INFO", "数据查询错误, 原因: {}".format(ex), "mysql", "Admin")
-        print('异常原因{}'.format(ex))
+        logger.log("ERROR", "数据查询错误, 原因: {}".format(ex), "mysql", "Admin")
         conn.rollback()
     finally:
         cursor.close()
