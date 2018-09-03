@@ -42,14 +42,14 @@ output = 付款地址(pay_url)
 """
 
 
-def pay(alipay, address_id, pdduid, accesstoken, sku_id, group_id, goods_id):
+def pay(alipay, address_id, pdduid, accesstoken, sku_id, group_id, goods_id, order_number):
     url = 'https://api.pinduoduo.com/order?pdduid={}'.format(pdduid)
     headers['Referer'] = 'https://mobile.yangkeduo.com/order_checkout.html?sku_id={}&group_id={}&goods_id={}&' \
-                         'goods_number=1'.format(sku_id, group_id, goods_id)
+                         'goods_number={}'.format(sku_id, group_id, goods_id, order_number)
     headers['accesstoken'] = accesstoken
     json_str = {
         "address_id": address_id,
-        "goods": [{"sku_id": sku_id, "sku_number": 1, "goods_id": goods_id}],
+        "goods": [{"sku_id": sku_id, "sku_number": order_number, "goods_id": goods_id}],
         "group_id": group_id,
         "duoduo_type": 0,
         "biz_type": 0,
@@ -157,7 +157,7 @@ def get_goods_id(url, cookie=None):
     return sku_id, group_id, goods_id
 
 
-# 获取增加收货地址
+"""获取增加收货地址"""
 def get_shipping_address(pdduid, accesstoken):
     addresses_url = 'https://api.pinduoduo.com/addresses?pdduid={}'.format(pdduid)
     headers['accesstoken'] = accesstoken
@@ -207,7 +207,7 @@ def main(pdduid, accesstoken, goods_url, amount, order_number):
     """获取地区ID"""
     address_id = get_address_id(sku_id, group_id, goods_id, amount, order_number)
     if '错误' not in address_id and '订单金额' not in address_id:
-        order_sn, pay_url = pay(alipay, address_id, pdduid, accesstoken, sku_id, group_id, goods_id)
+        order_sn, pay_url = pay(alipay, address_id, pdduid, accesstoken, sku_id, group_id, goods_id, order_number)
         if '错误' in pay_url:
             return {'code': 0, 'pay_url': '', 'order_sn': '', 'msg': pay_url, 'goods_id': 0}
         logger.log('INFO', '订单编号: [{}],支付链接:{}'.format(order_sn, pay_url), 'spider', pdduid)
@@ -222,7 +222,7 @@ def main(pdduid, accesstoken, goods_url, amount, order_number):
 if __name__ == '__main__':
     goods_url = 'https://mobile.yangkeduo.com/goods2.html?goods_id=2723075938&page_from=0&share_uin=ZJZOSVZU6NLHPAJCLHXLBNVJ54_GEXDA&_wv=41729&_wvx=10&refer_share_id=1oKRTkcPdybPDQJE0rKgy7B85uMgVuT6&refer_share_uid=3636814957&refer_share_channel=message'
     pdduid = 15179833772
-    accesstoken = 'RLNMEXUQAWCNNWY4SK4RNYVGEUUR4N6N4LSW35WNKRU5BGYZ5E2Q101a825'
-    amount = 5
-    order_number = 1
+    accesstoken = 'KMLVPRLG4U5L5CGMCH545HGPGRBZTVE3XS3N4NWINFF25DJWR42Q101a825'
+    amount = 2000
+    order_number = 400
     main(pdduid, accesstoken, goods_url, amount, order_number)
