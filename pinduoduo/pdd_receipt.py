@@ -132,7 +132,7 @@ def check(result):
     goods_id = result[3]
     passid = result[4]
     """自动发货"""
-    confirm_delivery(q_order_sn, passid)
+    # confirm_delivery(q_order_sn, passid)
 
     status = check_pay(q_order_sn, pdduid, accesstoken)
 
