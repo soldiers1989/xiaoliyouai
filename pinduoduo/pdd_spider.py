@@ -158,19 +158,33 @@ def get_goods_id(url, cookie=None):
 
 
 """获取增加收货地址"""
+
+
 def get_shipping_address(pdduid, accesstoken):
-    addresses_url = 'https://api.pinduoduo.com/addresses?pdduid={}'.format(pdduid)
     headers['accesstoken'] = accesstoken
+    address_id = '0'
+    # for i in range(2):
+    #     delete_url = 'http://apiv3.yangkeduo.com/address/{}?pdduid={}'.format(address_id, pdduid)
+    #     res = requests.delete(delete_url, headers=headers, verify=False)
+    #     if '地址错误' in res.text or 'error_msg' in res.text:
+    #         break
+    #     if res.json()['default_id'] == '0' or res.json()['default_id'] == 0:
+    #         break
+    #     else:
+    #         address_id = res.json()['default_id']
+    #         continue
+    addresses_url = 'https://api.pinduoduo.com/addresses?pdduid={}'.format(pdduid)
     response = requests.get(addresses_url, headers=headers, verify=False)
+
     if len(response.json()) == 0:
         url = 'https://api.pinduoduo.com/address?pdduid={}'.format(pdduid)
         add_data = {
-            "address": "32栋",
-            "city_id": 76,
-            "district_id": 693,
+            "address": "广东省深圳市宝安区龙华野咐路 08号 丛小区 78号楼 3单元 986室",
+            "city_id": 141,  # 城市标识
+            "district_id": 1146,   # 地区识别码
             "mobile": "15179833221",
-            "name": "zs",
-            "province_id": 6
+            "name": "刘礼",
+            "province_id": 10   # 省标识
         }
         add_response = requests.post(url, headers=headers, json=add_data, verify=False)
         if 'server_time' in add_response.json():
@@ -225,4 +239,5 @@ if __name__ == '__main__':
     accesstoken = 'KMLVPRLG4U5L5CGMCH545HGPGRBZTVE3XS3N4NWINFF25DJWR42Q101a825'
     amount = 2000
     order_number = 400
-    main(pdduid, accesstoken, goods_url, amount, order_number)
+    a = main(pdduid, accesstoken, goods_url, amount, order_number)
+    print(a)

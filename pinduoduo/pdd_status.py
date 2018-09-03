@@ -55,13 +55,14 @@ def check(result):
         order_number = result[7]
 
         status = check_pay(q_order_sn, pdduid, accesstoken)
-        if '待发货' in status or '拼团成功' in status or '待收货' in status:
+        if '待发货' in status or '拼团成功' in status or '待收货' in status or '已评价' in status:
             update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             sql = "update order_pdd set status='{}', update_time='{}' where order_sn='{}'".format('待发货', update_time,
                                                                                                   q_order_sn)
             db_insert(sql)
             key = 'nLSm8fdKCY6ZeysRjrzaHUgQXMp2vlJd'
-            a = 'amount={}&code=1&order_number={}&orderno={}&status=1&key={}'.format(amount, order_number, orderno, key)
+            a = 'amount={}&code=1&order_number={}&orderno={}&status=1&key={}'. \
+                format(amount, order_number, orderno, key)
             hl = hashlib.md5()
             hl.update(str(a).encode('utf-8'))
             encrypt = str(hl.hexdigest()).upper()
@@ -79,6 +80,7 @@ def check(result):
             }
             for j in range(6):
                 response = requests.post(notifyurl, data=data, verify=False)
+                print('回调返回: ', response.json())
                 if response.json()['code'] == 1:
                     logger.log('INFO', '订单[{}], 支付结果正常返回'.format(q_order_sn), 'status', pdduid)
                     break
@@ -104,7 +106,7 @@ def check(result):
 
 
 def main():
-    query_sql = "select order_sn, pdduid, accesstoken, notifyurl, orderno, amount, extends, order_number from order_pdd" \
+    query_sql = "select order_sn, pdduid, accesstoken, notifyurl, orderno, amount, extends, order_number, memberid, passid from order_pdd" \
                 " where status='待支付' and is_query=1 and u_id >= ((SELECT MAX(u_id) FROM order_pdd)-" \
                 "(SELECT MIN(u_id) FROM order_pdd)) * RAND() + (SELECT MIN(u_id) FROM order_pdd) LIMIT 20"
 

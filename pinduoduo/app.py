@@ -21,7 +21,7 @@ def test():
 
 @app.route('/pay')
 def test_pay():
-    pay_url = 'weixin://wap/pay?prepayid%3Dwx29135723019551b175a11a4f3628055395&package=1066013864&noncestr=1535522243&sign=e9836c9da45abe67e8c0129be4d6a020'
+    pay_url = 'weixin://wap/pay?prepayid%3Dwx031910501112006e331180633831409305&package=1777101486&noncestr=1535973050&sign=6dffd3b987985fb082663121c1171b21'
     return render_template('pay.html', pay_url=pay_url)
 
 
@@ -31,7 +31,7 @@ def pay():
         return jsonify({'code': 0, 'msg': '请求方式必须为POST', 'order_sn': '', 'pay_url': ''})
     else:
         form_data = request.form.to_dict()
-        check_data = ['accesstoken', 'amount', 'goods_url', 'orderno', 'pdduid', 'notifyurl', 'sign']
+        check_data = ['accesstoken', 'amount', 'goods_url', 'orderno', 'pdduid', 'notifyurl', 'sign', 'memberid', 'passid']
         for j in check_data:
             if j not in form_data:
                 return jsonify({'code': 0, 'msg': 'POST参数错误', 'order_sn': '', 'pay_url': ''})
@@ -50,10 +50,13 @@ def pay():
         orderno = form_data['orderno']  # 自己传入的订单号
         pdduid = form_data['pdduid']  # 登陆的手机号
         notifyurl = form_data['notifyurl']
-        order_number = int(form_data['order_number'])
+        order_number = int(form_data['order_number'])  # 下单数量
+        memberid = form_data['memberid']    # 商家ID
+        passid = form_data['passid']    # 发货需要的通行ID
+
         key = 'nLSm8fdKCY6ZeysRjrzaHUgQXMp2vlJd'  # 签名认证的key
-        a = 'accesstoken={}&amount={}&goods_url={}&order_number={}&orderno={}&pdduid={}&key={}'. \
-            format(accesstoken, amount, goods_url,  order_number, orderno,pdduid, key)
+        a = 'accesstoken={}&amount={}&goods_url={}&memberid={}&order_number={}&orderno={}&passid={}&pdduid={}&key={}'. \
+            format(accesstoken, amount, goods_url,  memberid, order_number, orderno, passid, pdduid, key)
         hl = hashlib.md5()
         hl.update(str(a).encode('utf-8'))
         encrypt = str(hl.hexdigest()).upper()
@@ -61,13 +64,14 @@ def pay():
         print(encrypt)
         if form_data['sign'] == encrypt:
             result = spider(pdduid, accesstoken, goods_url, amount, order_number)
+            print(result)
             if result['code'] == 1:
                 create_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 sql = "insert into order_pdd (accesstoken, amount, goods_url, goods_id, orderno, order_number, pdduid, notifyurl, callbackurl," \
-                      " extends, sign, order_type, pay_url, order_sn, status, is_query, create_time, update_time)" \
-                      " values ('{}', '{}','{}', '{}','{}','{}', '{}','{}', '{}', '{}', '{}','{}', '{}','{}', '{}', '{}','{}', '{}')". \
+                      " extends, sign, order_type, pay_url, order_sn, status, is_query, memberid, passid, create_time, update_time)" \
+                      " values ('{}', '{}','{}', '{}','{}','{}', '{}','{}', '{}', '{}', '{}','{}', '{}','{}', '{}','{}', '{}', '{}','{}', '{}')". \
                     format(accesstoken, amount, goods_url, result['goods_id'], orderno, order_number, pdduid, notifyurl, callbackurl,
-                           extends, encrypt, 'pdd', result['pay_url'], result['order_sn'], '待支付', 1, create_time,
+                           extends, encrypt, 'pdd', result['pay_url'], result['order_sn'], '待支付', 1, memberid, passid, create_time,
                            create_time)
                 db_insert(sql)
         else:

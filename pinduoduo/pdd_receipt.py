@@ -89,10 +89,10 @@ def check_pay(order_sn, pdduid, accesstoken):
 """自动发货"""
 
 
-def confirm_delivery(order_sn):
+def confirm_delivery(order_sn, passid):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.221 Safari/537.36 SE 2.X MetaSr 1.0",
-        "PASSID": "1b6c49fe5dcf4880b5e284ffbde071cf_229558070_16140335",
+        "PASSID": passid,
         "Content-Type": "application/json"
     }
     data1 = {"orderSn": order_sn, "source": "MMS"}
@@ -114,7 +114,7 @@ def confirm_delivery(order_sn):
             logger.log('ERROR', '订单: {}发货失败, 请联系管理员'.format(order_sn), 'receipt', 'Admin')
             return False
     elif '会话已过期' in response1.json():
-        logger.log('DEBUG', '订单: {}发货失败, 请更新PASSID'.format(order_sn), 'receipt', 'Admin')
+        logger.log('DEBUG', '订单: {}发货失败, 请更新passid'.format(order_sn), 'receipt', 'Admin')
         return False
     else:
         logger.log('ERROR', '订单: {}发货失败, 请联系管理员'.format(order_sn), 'receipt', 'Admin')
@@ -130,10 +130,12 @@ def check(result):
     pdduid = result[1]
     accesstoken = result[2]
     goods_id = result[3]
+    passid = result[4]
     """自动发货"""
-    confirm_delivery(q_order_sn)
+    confirm_delivery(q_order_sn, passid)
 
     status = check_pay(q_order_sn, pdduid, accesstoken)
+
     if '待收货' in status and '错误' not in status:
         if confirm_receipt(accesstoken, pdduid, q_order_sn):
             logger.log('INFO', '订单[{}]已确认收货'.format(q_order_sn), 'receipt', pdduid)
@@ -147,6 +149,11 @@ def check(result):
             db_insert(sql)
         else:
             logger.log('ERROR', '订单[{}]收货错误'.format(q_order_sn), 'receipt', pdduid)
+    if '已评价' in status:
+        update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        sql = "update order_pdd set status='{}', is_query=0, update_time='{}' where order_sn='{}'". \
+            format('已评价', update_time, q_order_sn)
+        db_insert(sql)
 
 
 """拼多多确认收货入口函数"""
@@ -154,7 +161,7 @@ def check(result):
 
 def main():
     yesterday = datetime.date.today() + datetime.timedelta(-1)
-    query_sql = "select order_sn, pdduid, accesstoken, goods_id from order_pdd" \
+    query_sql = "select order_sn, pdduid, accesstoken, goods_id, passid from order_pdd" \
                 " where status='待发货' and is_query=1 "
     result = db_query(query_sql)
     logger.log('INFO', '查询数据库符合条件的结果, 共[{}]个'.format(len(result)), 'receipt', 'Admin')
@@ -175,4 +182,4 @@ if __name__ == '__main__':
         except Exception as ex:
             logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'receipt', 'Admin')
             continue
-        time.sleep(30)
+        time.sleep(10)
