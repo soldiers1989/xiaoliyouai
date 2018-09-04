@@ -178,16 +178,25 @@ def get_shipping_address(pdduid, accesstoken):
 
     if len(response.json()) == 0:
         url = 'https://api.pinduoduo.com/address?pdduid={}'.format(pdduid)
+        f = open('用户地址.csv', 'r', encoding='utf-8')
+        b = f.readlines()[random.randint(0, 6500)]
+        name = str(b.split(',')[0]).replace('"', '').replace("'", '')
+        phone = str(b.split(',')[1]).replace('"', '').replace("'", '')
+        address = str(b.split(',')[2:-3]).replace('"', '').replace("'", '').replace("[", '').replace("]", '').replace(
+            ",", '')
+        province_id = str(b.split(',')[-3]).replace('"', '').replace("'", '')
+        city_id = str(b.split(',')[-2]).replace('"', '').replace("'", '')
+        district_id = str(b.split(',')[-1].replace('\n', '')).replace('"', '').replace("'", '')
+        f.close()
         add_data = {
-            "address": "广东省深圳市宝安区龙华野咐路 08号 丛小区 78号楼 3单元 986室",
-            "city_id": 77,  # 城市标识
-            "district_id": 705,   # 地区识别码
-            "mobile": "15179833221",
-            "name": "刘礼",
-            "province_id": 6   # 省标识
+            "address": address,
+            "city_id": city_id,  # 城市标识
+            "district_id": district_id,   # 地区识别码
+            "mobile": phone,
+            "name": name,
+            "province_id": province_id  # 省标识
         }
         add_response = requests.post(url, headers=headers, json=add_data, verify=False)
-        print(add_response.json())
         if 'server_time' in add_response.json():
             logger.log('INFO', '新增收货地址成功', 'spider', pdduid)
             return True, '新增收货地址成功'
@@ -215,7 +224,6 @@ def main(pdduid, accesstoken, goods_url, amount, order_number):
     is_add, msg = get_shipping_address(pdduid, accesstoken)
     if is_add is False:
         return {'code': 0, 'pay_url': '', 'order_sn': '', 'msg': msg}
-    return
     """获取商品信息"""
     sku_id, group_id, goods_id = get_goods_id(goods_url, cookie)
 
@@ -237,7 +245,7 @@ def main(pdduid, accesstoken, goods_url, amount, order_number):
 if __name__ == '__main__':
     goods_url = 'https://mobile.yangkeduo.com/goods2.html?goods_id=2723075938&page_from=0&share_uin=ZJZOSVZU6NLHPAJCLHXLBNVJ54_GEXDA&_wv=41729&_wvx=10&refer_share_id=1oKRTkcPdybPDQJE0rKgy7B85uMgVuT6&refer_share_uid=3636814957&refer_share_channel=message'
     pdduid = 15179833772
-    accesstoken = 'KMLVPRLG4U5L5CGMCH545HGPGRBZTVE3XS3N4NWINFF25DJWR42Q101a825'
+    accesstoken = 'IMQP2QJJ5OZCZAPXDGPV7CJQQTVAA4VYKDAGUAH3RKRAN4NQJX7A101a825'
     amount = 2000
     order_number = 400
     a = main(pdduid, accesstoken, goods_url, amount, order_number)
