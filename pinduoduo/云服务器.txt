@@ -1,0 +1,29 @@
+google:
+35.231.0.221
+
+root
+SJKbYHHYhzizx5TV
+
+
+阿里云:
+47.107.35.49
+
+administrator
+
+zxcvbn.123
+
+
+数据库:
+'DB_TYPE'   => 'mysql',       // 数据库类型
+    
+'DB_HOST'   => '39.104.69.48',       // 服务器地址
+    
+'DB_NAME'   => 'xinxitong',       // 数据库名
+    
+'DB_USER'   => 'root',       // 用户名
+    
+'DB_PWD'    => '123456',        // 密码
+    
+'DB_PORT'   => '3306',       // 端口
+    
+'DB_PREFIX' => 'pay_',     // 数据库表前缀

@@ -90,7 +90,7 @@ def check(result):
                 time.sleep(300)
                 logger.log('INFO', '订单:{}在{}分钟内未正确回调'.format(q_order_sn, (j + 1) * 5), 'status', pdduid)
             return
-        if i == 5:
+        if i == 10:
             update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             sql = "update order_pdd set status='{}', is_query=0, update_time='{}' where order_sn='{}'".format('已失效',
                                                                                                               update_time,
@@ -128,5 +128,6 @@ if __name__ == '__main__':
             main()
         except Exception as ex:
             logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'status', 'Admin')
+            time.sleep(10)
             continue
         time.sleep(10)

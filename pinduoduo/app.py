@@ -64,7 +64,6 @@ def pay():
         print(encrypt)
         if form_data['sign'] == encrypt:
             result = spider(pdduid, accesstoken, goods_url, amount, order_number)
-            print(result)
             if result['code'] == 1:
                 create_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 sql = "insert into order_pdd (accesstoken, amount, goods_url, goods_id, orderno, order_number, pdduid, notifyurl, callbackurl," \

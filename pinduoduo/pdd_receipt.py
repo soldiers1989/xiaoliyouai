@@ -132,7 +132,7 @@ def check(result):
     goods_id = result[3]
     passid = result[4]
     """自动发货"""
-    # confirm_delivery(q_order_sn, passid)
+    confirm_delivery(q_order_sn, passid)
 
     status = check_pay(q_order_sn, pdduid, accesstoken)
 
@@ -181,5 +181,6 @@ if __name__ == '__main__':
             main()
         except Exception as ex:
             logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'receipt', 'Admin')
+            time.sleep(10)
             continue
         time.sleep(10)

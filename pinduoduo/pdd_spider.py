@@ -163,16 +163,16 @@ def get_goods_id(url, cookie=None):
 def get_shipping_address(pdduid, accesstoken):
     headers['accesstoken'] = accesstoken
     address_id = '0'
-    # for i in range(2):
-    #     delete_url = 'http://apiv3.yangkeduo.com/address/{}?pdduid={}'.format(address_id, pdduid)
-    #     res = requests.delete(delete_url, headers=headers, verify=False)
-    #     if '地址错误' in res.text or 'error_msg' in res.text:
-    #         break
-    #     if res.json()['default_id'] == '0' or res.json()['default_id'] == 0:
-    #         break
-    #     else:
-    #         address_id = res.json()['default_id']
-    #         continue
+    for i in range(2):
+        delete_url = 'http://apiv3.yangkeduo.com/address/{}?pdduid={}'.format(address_id, pdduid)
+        res = requests.delete(delete_url, headers=headers, verify=False)
+        if '地址错误' in res.text or 'error_msg' in res.text:
+            break
+        if res.json()['default_id'] == '0' or res.json()['default_id'] == 0:
+            break
+        else:
+            address_id = res.json()['default_id']
+            continue
     addresses_url = 'https://api.pinduoduo.com/addresses?pdduid={}'.format(pdduid)
     response = requests.get(addresses_url, headers=headers, verify=False)
 
@@ -180,13 +180,14 @@ def get_shipping_address(pdduid, accesstoken):
         url = 'https://api.pinduoduo.com/address?pdduid={}'.format(pdduid)
         add_data = {
             "address": "广东省深圳市宝安区龙华野咐路 08号 丛小区 78号楼 3单元 986室",
-            "city_id": 141,  # 城市标识
-            "district_id": 1146,   # 地区识别码
+            "city_id": 77,  # 城市标识
+            "district_id": 705,   # 地区识别码
             "mobile": "15179833221",
             "name": "刘礼",
-            "province_id": 10   # 省标识
+            "province_id": 6   # 省标识
         }
         add_response = requests.post(url, headers=headers, json=add_data, verify=False)
+        print(add_response.json())
         if 'server_time' in add_response.json():
             logger.log('INFO', '新增收货地址成功', 'spider', pdduid)
             return True, '新增收货地址成功'
@@ -214,7 +215,7 @@ def main(pdduid, accesstoken, goods_url, amount, order_number):
     is_add, msg = get_shipping_address(pdduid, accesstoken)
     if is_add is False:
         return {'code': 0, 'pay_url': '', 'order_sn': '', 'msg': msg}
-
+    return
     """获取商品信息"""
     sku_id, group_id, goods_id = get_goods_id(goods_url, cookie)
 
