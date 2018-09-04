@@ -61,9 +61,37 @@ def check(result):
             sql = "update order_pdd set status='{}', update_time='{}' where order_sn='{}'".format('待发货', update_time,
                                                                                                   q_order_sn)
             db_insert(sql)
-            p = threading.Thread(target=callback,
-                                 args=(amount, order_number, orderno, extends, notifyurl, q_order_sn, pdduid))
-            p.start()
+            key = 'nLSm8fdKCY6ZeysRjrzaHUgQXMp2vlJd'
+            a = 'amount={}&code=1&order_number={}&orderno={}&status=1&key={}'. \
+                format(amount, order_number, orderno, key)
+            hl = hashlib.md5()
+            hl.update(str(a).encode('utf-8'))
+            encrypt = str(hl.hexdigest()).upper()
+
+            logger.log('INFO', '加密后的字符串: {}'.format(encrypt), 'status', pdduid)
+            data = {
+                "code": 1,
+                "msg": "",
+                "status": 1,
+                "orderno": orderno,
+                "order_number": order_number,
+                "amount": amount,
+                "extends": extends,
+                "sign": encrypt
+            }
+            for j in range(6):
+                response = requests.post(notifyurl, data=data, verify=False)
+                print('回调返回: ', response.json())
+                if response.json()['code'] == 1:
+                    logger.log('INFO', '订单[{}], 支付结果正常返回'.format(q_order_sn), 'status', pdduid)
+                    break
+                if j == 5:
+                    logger.log('ERROR', '订单[{}], 支付结果未正常返回'.format(q_order_sn), 'status', pdduid)
+                    break
+                time.sleep(300)
+                logger.log('INFO', '订单:{}在{}分钟内未正确回调'.format(q_order_sn, (j + 1) * 5), 'status', pdduid)
+            return
+
         if i == 10:
             update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             sql = "update order_pdd set status='{}', is_query=0, update_time='{}' where order_sn='{}'".format('已失效',
@@ -74,42 +102,6 @@ def check(result):
             return
         time.sleep(30)
         logger.log('INFO', '在{}秒内, 订单: [{}], 支付状态未改变.'.format((i + 1) * 30, q_order_sn), 'status', pdduid)
-
-
-"""异步回调通知"""
-
-
-def callback(amount, order_number, orderno, extends, notifyurl, q_order_sn, pdduid):
-    key = 'nLSm8fdKCY6ZeysRjrzaHUgQXMp2vlJd'
-    a = 'amount={}&code=1&order_number={}&orderno={}&status=1&key={}'. \
-        format(amount, order_number, orderno, key)
-    hl = hashlib.md5()
-    hl.update(str(a).encode('utf-8'))
-    encrypt = str(hl.hexdigest()).upper()
-
-    logger.log('INFO', '加密后的字符串: {}'.format(encrypt), 'status', pdduid)
-    data = {
-        "code": 1,
-        "msg": "",
-        "status": 1,
-        "orderno": orderno,
-        "order_number": order_number,
-        "amount": amount,
-        "extends": extends,
-        "sign": encrypt
-    }
-    for j in range(6):
-        response = requests.post(notifyurl, data=data, verify=False)
-        print('回调返回: ', response.json())
-        if response.json()['code'] == 1:
-            logger.log('INFO', '订单[{}], 支付结果正常返回'.format(q_order_sn), 'status', pdduid)
-            break
-        if j == 5:
-            logger.log('ERROR', '订单[{}], 支付结果未正常返回'.format(q_order_sn), 'status', pdduid)
-            break
-        time.sleep(300)
-        logger.log('INFO', '订单:{}在{}分钟内未正确回调'.format(q_order_sn, (j + 1) * 5), 'status', pdduid)
-    return
 
 
 """拼多多校验订单状态入口函数"""
