@@ -67,11 +67,11 @@ def pay():
             if result['code'] == 1:
                 create_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 sql = "insert into order_pdd (accesstoken, amount, goods_url, goods_id, orderno, order_number, pdduid, notifyurl, callbackurl," \
-                      " extends, sign, order_type, pay_url, order_sn, status, is_query, memberid, passid, create_time, update_time)" \
-                      " values ('{}', '{}','{}', '{}','{}','{}', '{}','{}', '{}', '{}', '{}','{}', '{}','{}', '{}','{}', '{}', '{}','{}', '{}')". \
+                      " extends, sign, order_type, pay_url, order_sn, status, is_query, memberid, passid, is_use, create_time, update_time)" \
+                      " values ('{}', '{}','{}', '{}','{}','{}', '{}','{}', '{}', '{}', '{}','{}', '{}','{}', '{}','{}', '{}', '{}','{}','{}', '{}')". \
                     format(accesstoken, amount, goods_url, result['goods_id'], orderno, order_number, pdduid, notifyurl, callbackurl,
-                           extends, encrypt, 'pdd', result['pay_url'], result['order_sn'], '待支付', 1, memberid, passid, create_time,
-                           create_time)
+                           extends, encrypt, 'pdd', result['pay_url'], result['order_sn'], '待支付', 1, memberid, passid,
+                           '否', create_time, create_time)
                 db_insert(sql)
         else:
             result = {'code': 0, 'msg': '签名失败'}

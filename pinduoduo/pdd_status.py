@@ -54,10 +54,12 @@ def check(result):
         amount = result[5]
         extends = result[6]
         order_number = result[7]
-
+        update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        sql = "update order_pdd set is_use='是', update_time='{}' where order_sn='{}'".format(update_time, q_order_sn)
+        db_insert(sql)
         status = check_pay(q_order_sn, pdduid, accesstoken)
         if '待发货' in status or '拼团成功' in status or '待收货' in status or '已评价' in status:
-            update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            # update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             sql = "update order_pdd set status='{}', update_time='{}' where order_sn='{}'".format('待发货', update_time,
                                                                                                   q_order_sn)
             db_insert(sql)
@@ -109,7 +111,7 @@ def check(result):
 
 def main():
     query_sql = "select order_sn, pdduid, accesstoken, notifyurl, orderno, amount, extends, order_number, memberid, passid from order_pdd" \
-                " where status='待支付' and is_query=1 and u_id >= ((SELECT MAX(u_id) FROM order_pdd)-" \
+                " where status='待支付' and is_query=1 and is_use='否' and u_id >= ((SELECT MAX(u_id) FROM order_pdd)-" \
                 "(SELECT MIN(u_id) FROM order_pdd)) * RAND() + (SELECT MIN(u_id) FROM order_pdd) LIMIT 20"
 
     result = db_query(query_sql)
