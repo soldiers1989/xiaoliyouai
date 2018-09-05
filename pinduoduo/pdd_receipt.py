@@ -131,11 +131,13 @@ def check(result):
     accesstoken = result[2]
     goods_id = result[3]
     passid = result[4]
+    update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    sql = "update t_acc_order set is_use=2, update_time='{}' where order_sn='{}'".format(update_time, q_order_sn)
+    db_insert(sql)
     """自动发货"""
     confirm_delivery(q_order_sn, passid)
 
     status = check_pay(q_order_sn, pdduid, accesstoken)
-
     if '待收货' in status and '错误' not in status:
         if confirm_receipt(accesstoken, pdduid, q_order_sn):
             logger.log('INFO', '订单[{}]已确认收货'.format(q_order_sn), 'receipt', pdduid)
@@ -144,15 +146,15 @@ def check(result):
             else:
                 logger.log('DEBUG', '订单[{}]5星好评错误'.format(q_order_sn), 'receipt', pdduid)
             update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            sql = "update order_pdd set status='{}', is_query=0, update_time='{}' where order_sn='{}'". \
-                format('已评价', update_time, q_order_sn)
+            sql = "update t_acc_order set status=3, is_query=0, update_time='{}' where order_sn='{}'". \
+                format(update_time, q_order_sn)
             db_insert(sql)
         else:
             logger.log('ERROR', '订单[{}]收货错误'.format(q_order_sn), 'receipt', pdduid)
     if '已评价' in status:
         update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        sql = "update order_pdd set status='{}', is_query=0, update_time='{}' where order_sn='{}'". \
-            format('已评价', update_time, q_order_sn)
+        sql = "update t_acc_order set status=3, is_query=0, update_time='{}' where order_sn='{}'". \
+            format(update_time, q_order_sn)
         db_insert(sql)
 
 
@@ -160,14 +162,13 @@ def check(result):
 
 
 def main():
-    yesterday = datetime.date.today() + datetime.timedelta(-1)
-    query_sql = "select order_sn, pdduid, accesstoken, goods_id, passid from order_pdd" \
-                " where status='待发货' and is_query=1 "
+    query_sql = "select order_sn, pdduid, accesstoken, goods_id, passid from t_acc_order" \
+                " where status='2' and is_query='1' and is_use='1' LIMIT 50"
     result = db_query(query_sql)
     logger.log('INFO', '查询数据库符合条件的结果, 共[{}]个'.format(len(result)), 'receipt', 'Admin')
     if len(result) == 0:
         return
-    pool = Pool(processes=20)
+    pool = Pool(processes=50)
     for j in result:
         pool.apply_async(check, [j])
     pool.close()

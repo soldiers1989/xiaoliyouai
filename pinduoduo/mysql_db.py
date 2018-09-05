@@ -47,10 +47,6 @@ if __name__ == '__main__':
     import datetime
 
     yesterday = datetime.date.today() + datetime.timedelta(-1)
-    # query_sql = "select order_sn, pdduid, accesstoken, notifyurl, orderno, amount, extends from order_pdd" \
-    #             " where status='待发货' and is_query=1 and update_time like '{} %%'".format(yesterday)
-    # print(query_sql)
-    query_sql = "SELECT id FROM user_address t1 INNER JOIN (SELECT RAND()*10000 AS nid) t2 ON t1.id > t2.nid LIMIT 1;"
-    for i in range(10000):
-        result = db_query(query_sql)
-        print(result)
+    sql = 'select * from t_acc_order'
+    a = db_query(sql)
+    print(len(a))

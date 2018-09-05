@@ -2,15 +2,16 @@ google:
 35.231.0.221
 
 root
+
 SJKbYHHYhzizx5TV
 
 
 °¢ÀïÔÆ:
-47.107.35.49
+47.107.35.49        47.98.134.57
 
-administrator
+administrator       root
 
-zxcvbn.123
+zxcvbn.123          xC1Qhv2kxUrgYKEt
 
 
 Êý¾Ý¿â:

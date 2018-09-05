@@ -45,7 +45,7 @@ def check_pay(order_sn, pdduid, accesstoken):
 
 def check(result):
     logger.log('INFO', '开始校验订单:{}支付状态'.format(result[0]), 'status', result[1])
-    for i in range(11):
+    for i in range(61):
         q_order_sn = result[0]
         pdduid = result[1]
         accesstoken = result[2]
@@ -55,13 +55,13 @@ def check(result):
         extends = result[6]
         order_number = result[7]
         update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        sql = "update order_pdd set is_use='是', update_time='{}' where order_sn='{}'".format(update_time, q_order_sn)
+        sql = "update t_acc_order set is_use=1, update_time='{}' where order_sn='{}'".format(update_time, q_order_sn)
         db_insert(sql)
         status = check_pay(q_order_sn, pdduid, accesstoken)
         if '待发货' in status or '拼团成功' in status or '待收货' in status or '已评价' in status:
             # update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            sql = "update order_pdd set status='{}', update_time='{}' where order_sn='{}'".format('待发货', update_time,
-                                                                                                  q_order_sn)
+            sql = "update t_acc_order set status=2, update_time='{}' where order_sn='{}'".format(update_time,
+                                                                                                 q_order_sn)
             db_insert(sql)
             key = 'nLSm8fdKCY6ZeysRjrzaHUgQXMp2vlJd'
             a = 'amount={}&code=1&order_number={}&orderno={}&status=1&key={}'. \
@@ -94,31 +94,29 @@ def check(result):
                 logger.log('INFO', '订单:{}在{}分钟内未正确回调'.format(q_order_sn, (j + 1) * 5), 'status', pdduid)
             return
 
-        if i == 10:
+        if i == 60:
             update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            sql = "update order_pdd set status='{}', is_query=0, update_time='{}' where order_sn='{}'".format('已失效',
-                                                                                                              update_time,
-                                                                                                              q_order_sn)
+            sql = "update t_acc_order set status=0, is_query=0, update_time='{}' where order_sn='{}'".format(
+                update_time, q_order_sn)
             db_insert(sql)
             logger.log('DEBUG', '订单[{}], 设定时间内,支付状态未改变,不在查询此订单'.format(q_order_sn), 'status', pdduid)
             return
-        time.sleep(30)
-        logger.log('INFO', '在{}秒内, 订单: [{}], 支付状态未改变.'.format((i + 1) * 30, q_order_sn), 'status', pdduid)
+        time.sleep(5)
+        logger.log('INFO', '在{}秒内, 订单: [{}], 支付状态未改变.'.format((i + 1) * 5, q_order_sn), 'status', pdduid)
 
 
 """拼多多校验订单状态入口函数"""
 
 
 def main():
-    query_sql = "select order_sn, pdduid, accesstoken, notifyurl, orderno, amount, extends, order_number, memberid, passid from order_pdd" \
-                " where status='待支付' and is_query=1 and is_use='否' and u_id >= ((SELECT MAX(u_id) FROM order_pdd)-" \
-                "(SELECT MIN(u_id) FROM order_pdd)) * RAND() + (SELECT MIN(u_id) FROM order_pdd) LIMIT 20"
+    query_sql = "select order_sn, pdduid, accesstoken, notifyurl, orderno, amount, extends, order_number, memberid, passid from t_acc_order" \
+                " where status='1' and is_query='1' and is_use='0' LIMIT 50"
 
     result = db_query(query_sql)
     logger.log('INFO', '查询数据库符合条件的结果, 共[{}]个'.format(len(result)), 'status', 'Admin')
     if len(result) == 0:
         return
-    pool = Pool(processes=20)
+    pool = Pool(processes=50)
     for j in result:
         pool.apply_async(check, [j])
     pool.close()
