@@ -5,12 +5,15 @@ import urllib3
 import hashlib
 import threading
 from multiprocessing.dummy import Pool
+from redis_queue import RedisQueue
 
 urllib3.disable_warnings()
 import re, datetime, time, json
 from logger import Logger
 from mysql_db import db_query, db_insert
 
+q = RedisQueue('pdd')
+r = RedisQueue('rec')
 logger = Logger()
 
 """校验支付状态"""
@@ -27,109 +30,108 @@ def check_pay(order_sn, pdduid, accesstoken):
     res = requests.get(url, headers=headers, verify=False)
 
     if 'window.isUseHttps= false' in res.text or 'window.isUseHttps' not in res.text:
-        logger.log('ERROR', '查询订单[{}]错误'.format(order_sn), 'status', pdduid)
-        return '查询订单[{}]错误'.format(order_sn)
+        logger.log('ERROR', '查询订单:[{}]错误'.format(order_sn), 'status', pdduid)
+        return '查询订单:[{}]错误'.format(order_sn)
     else:
         n_order_sn = re.findall('"order_sn":"(.*?)",', res.text)[0]
         if order_sn == n_order_sn:
             pay_status = re.findall('"order_status_desc":"(.*?)",', res.text)[0]
-            logger.log('INFO', '获取订单[{}]信息成功, 支付状态: {}'.format(n_order_sn, pay_status), 'status', pdduid)
+            logger.log('INFO', '获取订单:[{}]信息成功, 支付状态: {}'.format(n_order_sn, pay_status), 'status', pdduid)
             return pay_status
         else:
-            logger.log('ERROR', '查询订单[{}]错误'.format(order_sn), 'status', pdduid)
-            return '查询订单[{}]错误, 请确认!'.format(order_sn)
+            logger.log('ERROR', '查询订单:[{}]错误'.format(order_sn), 'status', pdduid)
+            return '查询订单:[{}]错误, 请确认!'.format(order_sn)
 
 
 """校验订单状态"""
 
 
 def check(result):
-    logger.log('INFO', '开始校验订单:{}支付状态'.format(result[0]), 'status', result[1])
-    for i in range(61):
-        q_order_sn = result[0]
-        pdduid = result[1]
-        accesstoken = result[2]
-        notifyurl = result[3]
-        orderno = result[4]
-        amount = result[5]
-        extends = result[6]
-        order_number = result[7]
-        update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        sql = "update t_acc_order set is_use=1, update_time='{}' where order_sn='{}'".format(update_time, q_order_sn)
-        db_insert(sql)
-        status = check_pay(q_order_sn, pdduid, accesstoken)
-        if '待发货' in status or '拼团成功' in status or '待收货' in status or '已评价' in status:
-            # update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            sql = "update t_acc_order set status=2, update_time='{}' where order_sn='{}'".format(update_time,
-                                                                                                 q_order_sn)
-            db_insert(sql)
-            key = 'nLSm8fdKCY6ZeysRjrzaHUgQXMp2vlJd'
-            a = 'amount={}&code=1&order_number={}&orderno={}&status=1&key={}'. \
-                format(amount, order_number, orderno, key)
-            hl = hashlib.md5()
-            hl.update(str(a).encode('utf-8'))
-            encrypt = str(hl.hexdigest()).upper()
+    q_order_sn = result['order_sn']
+    pdduid = result['pdduid']
+    accesstoken = result['accesstoken']
+    notifyurl = result['notifyurl']
+    orderno = result['orderno']
+    amount = result['amount']
+    extends = result['extends']
+    order_number = result['order_number']
+    update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    result['is_use'] = 1  # 修改调用状态为被status调用
+    result['update_time'] = update_time  # 修改更新时间
+    result['success'] = False
 
-            logger.log('INFO', '加密后的字符串: {}'.format(encrypt), 'status', pdduid)
-            data = {
-                "code": 1,
-                "msg": "",
-                "status": 1,
-                "orderno": orderno,
-                "order_number": order_number,
-                "amount": amount,
-                "extends": extends,
-                "sign": encrypt
-            }
-            for j in range(6):
-                response = requests.post(notifyurl, data=data, verify=False)
-                print('回调返回: ', response.json())
-                if response.json()['code'] == 1:
-                    logger.log('INFO', '订单[{}], 支付结果正常返回'.format(q_order_sn), 'status', pdduid)
-                    break
-                if j == 5:
-                    logger.log('ERROR', '订单[{}], 支付结果未正常返回'.format(q_order_sn), 'status', pdduid)
-                    break
-                time.sleep(300)
-                logger.log('INFO', '订单:{}在{}分钟内未正确回调'.format(q_order_sn, (j + 1) * 5), 'status', pdduid)
-            return
+    status = check_pay(q_order_sn, pdduid, accesstoken)
+    if '待发货' in status or '拼团成功' in status or '待收货' in status or '已评价' in status:
+        result['status'] = 2  # 修改支付状态为待发货
+        result['success'] = True
 
-        if i == 60:
-            update_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            sql = "update t_acc_order set status=0, is_query=0, update_time='{}' where order_sn='{}'".format(
-                update_time, q_order_sn)
-            db_insert(sql)
-            logger.log('DEBUG', '订单[{}], 设定时间内,支付状态未改变,不在查询此订单'.format(q_order_sn), 'status', pdduid)
-            return
-        time.sleep(5)
-        logger.log('INFO', '在{}秒内, 订单: [{}], 支付状态未改变.'.format((i + 1) * 5, q_order_sn), 'status', pdduid)
+        key = 'nLSm8fdKCY6ZeysRjrzaHUgQXMp2vlJd'
+        a = 'amount={}&code=1&order_number={}&orderno={}&status=1&key={}'. \
+            format(amount, order_number, orderno, key)
+        hl = hashlib.md5()
+        hl.update(str(a).encode('utf-8'))
+        encrypt = str(hl.hexdigest()).upper()
+
+        logger.log('INFO', '加密后的字符串: {}'.format(encrypt), 'status', pdduid)
+        data = {
+            "code": 1,
+            "msg": "",
+            "status": 1,
+            "orderno": orderno,
+            "order_number": order_number,
+            "amount": amount,
+            "extends": extends,
+            "sign": encrypt
+        }
+        for j in range(6):
+            response = requests.post(notifyurl, data=data, verify=False)
+            print('回调返回: ', response.json())
+            if response.json()['code'] == 1:
+                logger.log('INFO', '订单:[{}]支付结果正常返回'.format(q_order_sn), 'status', pdduid)
+                return result
+            if j == 5:
+                logger.log('ERROR', '订单:[{}]支付结果未正常返回'.format(q_order_sn), 'status', pdduid)
+                return result
+            time.sleep(300)
+            logger.log('INFO', '订单:[{}]在{}分钟内未正确回调'.format(q_order_sn, (j + 1) * 5), 'status', pdduid)
+    else:
+        return result
 
 
 """拼多多校验订单状态入口函数"""
 
 
 def main():
-    query_sql = "select order_sn, pdduid, accesstoken, notifyurl, orderno, amount, extends, order_number, memberid, passid from t_acc_order" \
-                " where status='1' and is_query='1' and is_use='0' LIMIT 50"
-
-    result = db_query(query_sql)
-    logger.log('INFO', '查询数据库符合条件的结果, 共[{}]个'.format(len(result)), 'status', 'Admin')
-    if len(result) == 0:
+    q_result = q.get_nowait()
+    if not q_result:
+        logger.log('INFO', '队列:[pdd]，当前没数据'.format(), 'queue', 'Admin')
         return
-    pool = Pool(processes=50)
-    for j in result:
-        pool.apply_async(check, [j])
-    pool.close()
-    pool.join()
+    q_dict = eval(q_result)
+    q_time = q_dict['create_time'] + datetime.timedelta(minutes=6)
+    result = check(q_dict)
+    # 如果6分钟后的时间和当前时间比较，如果比现在的时间大，则不添加队列
+    if q_time > datetime.datetime.now() and result['success'] is False:
+        logger.log('INFO', '订单:[{}]支付状态未改变, 重新添加进队列:[pdd]'.format(result['order_sn']), 'queue', result['pdduid'])
+        q.put(q_result)
+    else:
+        if result['success']:
+            logger.log('INFO', '订单:[{}]支付状态已改变, 添加进队列:[rec]'.format(result['order_sn']), 'queue', result['pdduid'])
+            r.put(result)
+        else:
+            result['status'] = 0
+            result['is_query'] = 0
+            logger.log('DEBUG', '订单:[{}]6分钟内支付状态未改变, 添加进队列:[rec]'.format(result['order_sn']), 'queue', result['pdduid'])
+            r.put(result)
 
 
 if __name__ == '__main__':
     logger.log('INFO', '检测订单脚本启动...', 'status', 'Admin')
     while True:
         try:
+            pool = Pool(processes=10)
             main()
         except Exception as ex:
             logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'status', 'Admin')
             time.sleep(10)
             continue
-        time.sleep(10)
+        time.sleep(5)

@@ -8,7 +8,6 @@ import urllib.parse
 import time
 
 urllib3.disable_warnings()
-req = requests.session()
 import pymysql
 from logger import Logger
 from bs4 import BeautifulSoup
@@ -75,7 +74,7 @@ def pay(alipay, address_id, pdduid, accesstoken, sku_id, group_id, goods_id, ord
             continue
 
     if alipay:
-        logger.log('INFO', '订单: [{}], 支付方式: 支付宝支付'.format(order_sn), 'spider', pdduid)
+        logger.log('INFO', '订单:[{}]支付方式: 支付宝支付'.format(order_sn), 'spider', pdduid)
         url2 = 'https://api.pinduoduo.com/order/prepay?pdduid={}'.format(pdduid)
         t_data = {
             "order_sn": order_sn,
@@ -93,7 +92,7 @@ def pay(alipay, address_id, pdduid, accesstoken, sku_id, group_id, goods_id, ord
         response = requests.get(dingdan_url, headers=headers, verify=False)
         pay_url = response.url
     else:
-        logger.log('INFO', '订单: [{}], 支付方式: 微信支付'.format(order_sn), 'spider', pdduid)
+        logger.log('INFO', '订单:[{}]支付方式: 微信支付'.format(order_sn), 'spider', pdduid)
         url2 = 'https://api.pinduoduo.com/order/prepay?pdduid={}'.format(pdduid)
         t_data = {
             "order_sn": order_sn,
@@ -163,16 +162,16 @@ def get_goods_id(url, cookie=None):
 def get_shipping_address(pdduid, accesstoken):
     headers['accesstoken'] = accesstoken
     address_id = '0'
-    for i in range(2):
-        delete_url = 'http://apiv3.yangkeduo.com/address/{}?pdduid={}'.format(address_id, pdduid)
-        res = requests.delete(delete_url, headers=headers, verify=False)
-        if '地址错误' in res.text or 'error_msg' in res.text:
-            break
-        if res.json()['default_id'] == '0' or res.json()['default_id'] == 0:
-            break
-        else:
-            address_id = res.json()['default_id']
-            continue
+    # for i in range(2):
+    #     delete_url = 'http://apiv3.yangkeduo.com/address/{}?pdduid={}'.format(address_id, pdduid)
+    #     res = requests.delete(delete_url, headers=headers, verify=False)
+    #     if '地址错误' in res.text or 'error_msg' in res.text:
+    #         break
+    #     if res.json()['default_id'] == '0' or res.json()['default_id'] == 0:
+    #         break
+    #     else:
+    #         address_id = res.json()['default_id']
+    #         continue
     addresses_url = 'https://api.pinduoduo.com/addresses?pdduid={}'.format(pdduid)
     response = requests.get(addresses_url, headers=headers, verify=False)
 
@@ -191,7 +190,7 @@ def get_shipping_address(pdduid, accesstoken):
         add_data = {
             "address": address,
             "city_id": city_id,  # 城市标识
-            "district_id": district_id,   # 地区识别码
+            "district_id": district_id,  # 地区识别码
             "mobile": phone,
             "name": name,
             "province_id": province_id  # 省标识
@@ -233,7 +232,7 @@ def main(pdduid, accesstoken, goods_url, amount, order_number):
         order_sn, pay_url = pay(alipay, address_id, pdduid, accesstoken, sku_id, group_id, goods_id, order_number)
         if '错误' in pay_url:
             return {'code': 0, 'pay_url': '', 'order_sn': '', 'msg': pay_url, 'goods_id': 0}
-        logger.log('INFO', '订单编号: [{}],支付链接:{}'.format(order_sn, pay_url), 'spider', pdduid)
+        logger.log('INFO', '订单:[{}]支付链接:[{}]'.format(order_sn, pay_url), 'spider', pdduid)
         return {'code': 1, 'pay_url': pay_url, 'order_sn': order_sn, 'msg': '', 'goods_id': goods_id}
     elif '订单金额不一致' in address_id:
         return {'code': 0, 'pay_url': '', 'order_sn': '', 'msg': address_id, 'goods_id': 0}
@@ -249,4 +248,8 @@ if __name__ == '__main__':
     amount = 2000
     order_number = 400
     a = main(pdduid, accesstoken, goods_url, amount, order_number)
+    from redis_queue import RedisQueue
+
+    q = RedisQueue('pdd')  # 新建队列名为rq
+    q.put(a)
     print(a)

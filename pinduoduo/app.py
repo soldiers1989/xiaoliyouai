@@ -2,11 +2,14 @@ import hashlib
 import datetime
 from mysql_db import db_insert
 from flask import Flask, jsonify, request, redirect, render_template
+from redis_queue import RedisQueue
 
 app = Flask(__name__)
 
 # 爬虫部分
 from pdd_spider import main
+
+q = RedisQueue('pdd')
 
 
 def spider(pdduid, accesstoken, goods_url, amount, order_number):
@@ -66,15 +69,31 @@ def pay():
         if form_data['sign'] == encrypt:
             result = spider(pdduid, accesstoken, goods_url, amount, order_number)
             if result['code'] == 1:
-                create_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                sql = "insert into t_acc_order (accesstoken, amount, goods_url, goods_id, orderno, order_number, pdduid, notifyurl, callbackurl," \
-                      " extends, sign, order_type, pay_url, order_sn, status, is_query, memberid, passid, is_use, create_time, update_time)" \
-                      " values ('{}', '{}','{}', '{}','{}','{}', '{}','{}', '{}', '{}', '{}','{}', '{}','{}', '{}','{}', '{}', '{}','{}','{}', '{}')". \
-                    format(accesstoken, amount, goods_url, result['goods_id'], orderno, order_number, pdduid, notifyurl,
-                           callbackurl,
-                           extends, encrypt, 'pdd', result['pay_url'], result['order_sn'], 1, 1, memberid, passid,
-                           0, create_time, create_time)
-                db_insert(sql)
+                create_time = datetime.datetime.now()
+                q_result = {
+                    'accesstoken': accesstoken,
+                    'amount': amount,
+                    'goods_url': goods_url,
+                    'goods_id': result['goods_id'],
+                    'orderno': orderno,
+                    'order_number': order_number,
+                    'pdduid': pdduid,
+                    'notifyurl': notifyurl,
+                    'callbackurl': callbackurl,
+                    'extends': extends,
+                    'sign': encrypt,
+                    'order_type': 'pdd',
+                    'pay_url': result['pay_url'],
+                    'order_sn': result['order_sn'],
+                    'status': 1,
+                    'is_query': 1,
+                    'memberid': memberid,
+                    'passid': passid,
+                    'is_use': 0,
+                    'create_time': create_time,
+                    'update_time': create_time.strftime('%Y-%m-%d %H:%M:%S')
+                }
+                q.put(q_result)
         else:
             result = {'code': 0, 'msg': '签名失败'}
         return jsonify(result)
