@@ -1,10 +1,11 @@
 import redis
 
+
 class RedisQueue(object):
     def __init__(self, name, namespace='queue', **redis_kwargs):
-       # redis的默认参数为：host='localhost', port=6379, db=0， 其中db为定义redis database的数量
-       self.__db = redis.Redis(**redis_kwargs)
-       self.key = '%s:%s' %(namespace, name)
+        # redis的默认参数为：host='localhost', port=6379, db=0， 其中db为定义redis database的数量
+        self.__db = redis.Redis(**redis_kwargs)
+        self.key = '%s:%s' % (namespace, name)
 
     def qsize(self):
         return self.__db.llen(self.key)  # 返回队列里面list内元素的数量
@@ -21,5 +22,5 @@ class RedisQueue(object):
 
     def get_nowait(self):
         # 直接返回队列第一个元素，如果队列为空返回的是None
-        item = self.__db.lpop(self.key)  
+        item = self.__db.lpop(self.key)
         return item

@@ -2,12 +2,11 @@
 __author__ = '张全亮'
 import requests
 import urllib3
-from multiprocessing.dummy import Pool
 
 urllib3.disable_warnings()
-import re, datetime, time, json
+import re, datetime, time
 from logger import Logger
-from mysql_db import db_query, db_insert
+from mysql_db import db_insert
 from redis_queue import RedisQueue
 
 r = RedisQueue('rec')
@@ -142,8 +141,7 @@ def check(result):
     """自动发货"""
     confirm_delivery(q_order_sn, passid)
 
-    # status = check_pay(q_order_sn, pdduid, accesstoken)
-    status = '待收货'
+    status = check_pay(q_order_sn, pdduid, accesstoken)
     if '待收货' in status and '错误' not in status:
         if confirm_receipt(accesstoken, pdduid, q_order_sn):
             logger.log('INFO', '订单:[{}]已确认收货'.format(q_order_sn), 'receipt', pdduid)
@@ -176,7 +174,6 @@ def check(result):
 def main():
     r_result = r.get_nowait()
     if not r_result:
-        logger.log('INFO', '队列:[rec]，当前没数据'.format(), 'queue', 'Admin')
         return
     r_dict = eval(r_result)
     if r_dict['success']:
@@ -213,4 +210,4 @@ if __name__ == '__main__':
             logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'receipt', 'Admin')
             time.sleep(10)
             continue
-        time.sleep(10)
+        time.sleep(5)

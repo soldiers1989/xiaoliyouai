@@ -3,14 +3,11 @@ __author__ = '张全亮'
 import requests
 import urllib3
 import hashlib
-import threading
-from multiprocessing.dummy import Pool
 from redis_queue import RedisQueue
 
 urllib3.disable_warnings()
-import re, datetime, time, json
+import re, datetime, time
 from logger import Logger
-from mysql_db import db_query, db_insert
 
 q = RedisQueue('pdd')
 r = RedisQueue('rec')
@@ -104,7 +101,6 @@ def check(result):
 def main():
     q_result = q.get_nowait()
     if not q_result:
-        logger.log('INFO', '队列:[pdd]，当前没数据'.format(), 'queue', 'Admin')
         return
     q_dict = eval(q_result)
     q_time = q_dict['create_time'] + datetime.timedelta(minutes=6)
@@ -128,7 +124,6 @@ if __name__ == '__main__':
     logger.log('INFO', '检测订单脚本启动...', 'status', 'Admin')
     while True:
         try:
-            pool = Pool(processes=10)
             main()
         except Exception as ex:
             logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'status', 'Admin')
