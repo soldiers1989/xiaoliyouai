@@ -5,6 +5,7 @@ import urllib3
 import hashlib
 from redis_queue import RedisQueue
 from bs4 import BeautifulSoup
+from multiprocessing.pool import Pool
 
 urllib3.disable_warnings()
 import re, datetime, time
@@ -128,10 +129,18 @@ def main():
 if __name__ == '__main__':
     logger.log('INFO', '检测订单脚本启动...', 'status', 'Admin')
     while True:
-        try:
-            main()
-        except Exception as ex:
-            logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'status', 'Admin')
-            time.sleep(10)
+        qsize = q.qsize()
+        if qsize == 0:
+            time.sleep(3)
             continue
-        time.sleep(1)
+        pool = Pool(processes=20)
+        for i in range(qsize):
+            try:
+                pool.apply_async(main)
+            except Exception as ex:
+                logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'status', 'Admin')
+                time.sleep(10)
+                continue
+        pool.close()
+        pool.join()
+        time.sleep(3)

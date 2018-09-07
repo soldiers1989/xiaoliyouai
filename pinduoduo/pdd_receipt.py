@@ -3,6 +3,7 @@ __author__ = '张全亮'
 import requests
 import urllib3
 from bs4 import BeautifulSoup
+from multiprocessing.dummy import Pool
 
 urllib3.disable_warnings()
 import re, datetime, time
@@ -234,10 +235,18 @@ def main():
 if __name__ == '__main__':
     logger.log('INFO', '确认收货脚本启动...', 'receipt', 'Admin')
     while True:
-        try:
-            main()
-        except Exception as ex:
-            logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'receipt', 'Admin')
-            time.sleep(10)
+        qsize = r.qsize()
+        if qsize == 0:
+            time.sleep(3)
             continue
-        time.sleep(1)
+        pool = Pool(processes=20)
+        for i in range(qsize):
+            try:
+                pool.apply_async(main)
+            except Exception as ex:
+                logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'status', 'Admin')
+                time.sleep(10)
+                continue
+        pool.close()
+        pool.join()
+        time.sleep(3)
