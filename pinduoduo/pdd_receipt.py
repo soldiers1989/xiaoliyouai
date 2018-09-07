@@ -239,7 +239,10 @@ if __name__ == '__main__':
         if qsize == 0:
             time.sleep(3)
             continue
-        pool = Pool(processes=20)
+        if qsize < 100:
+            pool = Pool(processes=qsize)
+        else:
+            pool = Pool(processes=100)
         for i in range(qsize):
             try:
                 pool.apply_async(main)
