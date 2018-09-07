@@ -2,6 +2,7 @@
 __author__ = '张全亮'
 import requests
 import urllib3
+from bs4 import BeautifulSoup
 
 urllib3.disable_warnings()
 import re, datetime, time
@@ -9,6 +10,7 @@ from logger import Logger
 from mysql_db import db_insert
 from redis_queue import RedisQueue
 
+q = RedisQueue('pdd')
 r = RedisQueue('rec')
 logger = Logger()
 
@@ -53,11 +55,15 @@ def confirm_receipt(accesstoken, pdduid, order_sn):
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.221 Safari/537.36 SE 2.X MetaSr 1.0',
         'Cookie': cookie
     }
-    response = requests.post(url, headers=headers, verify=False)
-    if 'nickname' in response.json() and 'share_code' in response.json():
-        return True
-    else:
-        return False
+    for i in range(3):
+        try:
+            response = requests.post(url, headers=headers, verify=False)
+            if 'nickname' in response.json() and 'share_code' in response.json():
+                return True
+            else:
+                return False
+        except:
+            continue
 
 
 """校验支付状态"""
@@ -79,8 +85,13 @@ def check_pay(order_sn, pdduid, accesstoken):
     else:
         n_order_sn = re.findall('"order_sn":"(.*?)",', res.text)[0]
         if order_sn == n_order_sn:
-            pay_status = re.findall('"order_status_desc":"(.*?)",', res.text)[0]
-            logger.log('INFO', '获取订单:[{}]信息成功, 支付状态: {}'.format(n_order_sn, pay_status), 'receipt', pdduid)
+            # try:
+            #     pay_status = re.findall('"order_status_desc":"(.*?)",', res.text)[0]
+            # except:
+            #     pay_status = re.findall('"order_status_prompt":"(.*?)",', res.text)[0]
+            soup = BeautifulSoup(res.text, 'html.parser')
+            pay_status = soup.find('p', class_='order-status').get_text().strip()
+            logger.log('INFO', '获取订单:[{}]信息成功, 支付状态: {}'.format(n_order_sn, pay_status), 'status', pdduid)
             return pay_status
         else:
             logger.log('ERROR', '查询订单:[{}]错误'.format(order_sn), 'receipt', pdduid)
@@ -138,34 +149,42 @@ def check(result):
     result['is_use'] = 2
     result['update_time'] = update_time
 
-    """自动发货"""
-    confirm_delivery(q_order_sn, passid)
-
     status = check_pay(q_order_sn, pdduid, accesstoken)
-    if '待收货' in status and '错误' not in status:
-        if confirm_receipt(accesstoken, pdduid, q_order_sn):
-            logger.log('INFO', '订单:[{}]已确认收货'.format(q_order_sn), 'receipt', pdduid)
-            if evaluation(pdduid, accesstoken, goods_id, q_order_sn):
-                logger.log('INFO', '订单:[{}]已5星好评'.format(q_order_sn), 'receipt', pdduid)
-            else:
-                logger.log('DEBUG', '订单:[{}]5星好评错误'.format(q_order_sn), 'receipt', pdduid)
-            update_time2 = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            result['status'] = 3
-            result['is_query'] = 0
-            result['update_time'] = update_time2
-            result['success'] = True
-        else:
-            result['status'] = 4
-            result['is_query'] = 0
-            result['success'] = False
-            logger.log('ERROR', '订单:[{}]收货错误'.format(q_order_sn), 'receipt', pdduid)
-        return result
-    if '已评价' in status:
+    if '已评价' in status or '待评价' in status or '已收货' in status:
         result['status'] = 3
         result['is_query'] = 0
         result['update_time'] = update_time
         result['success'] = True
         return result
+    elif '待支付' in status:
+        q.put(result)
+        return result
+    elif '待发货' in status:
+        """自动发货"""
+        is_ok = confirm_delivery(q_order_sn, passid)
+        if is_ok is False:
+            r.put(result)
+            return result
+    elif '待收货' in status:
+        pass
+    else:
+        logger.log('ERROR', '订单:[{}]未考虑到的订单类型: {}'.format(q_order_sn, status), 'receipt', pdduid)
+
+    if confirm_receipt(accesstoken, pdduid, q_order_sn):
+        logger.log('INFO', '订单:[{}]已确认收货'.format(q_order_sn), 'receipt', pdduid)
+        if evaluation(pdduid, accesstoken, goods_id, q_order_sn):
+            logger.log('INFO', '订单:[{}]已5星好评'.format(q_order_sn), 'receipt', pdduid)
+        else:
+            logger.log('DEBUG', '订单:[{}]5星好评错误'.format(q_order_sn), 'receipt', pdduid)
+        update_time2 = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        result['status'] = 3
+        result['is_query'] = 0
+        result['update_time'] = update_time2
+        result['success'] = True
+    else:
+        r.put(result)
+        logger.log('ERROR', '订单:[{}]收货错误'.format(q_order_sn), 'receipt', pdduid)
+    return result
 
 
 """拼多多确认收货入口函数"""
@@ -176,19 +195,9 @@ def main():
     if not r_result:
         return
     r_dict = eval(r_result)
-    if r_dict['success']:
-        result = check(r_dict)
-        sql = "insert into t_acc_order (accesstoken, amount, goods_url, goods_id, orderno, order_number, pdduid, notifyurl, callbackurl," \
-              " extends, sign, order_type, pay_url, order_sn, status, is_query, memberid, passid, is_use, create_time, update_time)" \
-              " values ('{}', '{}','{}', '{}','{}','{}', '{}','{}', '{}', '{}', '{}','{}', '{}','{}', '{}','{}', '{}', '{}','{}','{}', '{}')". \
-            format(result['accesstoken'], result['amount'], result['goods_url'], result['goods_id'], result['orderno'],
-                   result['order_number'], result['pdduid'], result['notifyurl'], result['callbackurl'],
-                   result['extends'],
-                   result['sign'], result['order_type'], result['pay_url'], result['order_sn'], result['status'],
-                   result['is_query'], result['memberid'], result['passid'], result['is_use'],
-                   result['create_time'].strftime('%Y-%m-%d %H:%M:%S'), result['create_time'])
-        db_insert(sql)
-    else:
+
+    # 状态为已失效和不查询的时候，保持这笔失效订单
+    if r_dict['status'] == 0 and r_dict['is_query'] == 0:
         sql = "insert into t_acc_order (accesstoken, amount, goods_url, goods_id, orderno, order_number, pdduid, notifyurl, callbackurl," \
               " extends, sign, order_type, pay_url, order_sn, status, is_query, memberid, passid, is_use, create_time, update_time)" \
               " values ('{}', '{}','{}', '{}','{}','{}', '{}','{}', '{}', '{}', '{}','{}', '{}','{}', '{}','{}', '{}', '{}','{}','{}', '{}')". \
@@ -199,6 +208,27 @@ def main():
                    r_dict['is_query'], r_dict['memberid'], r_dict['passid'], r_dict['is_use'],
                    r_dict['create_time'].strftime('%Y-%m-%d %H:%M:%S'), r_dict['create_time'])
         db_insert(sql)
+    else:
+        result = check(r_dict)
+        # 发货失败和收货失败的情况下，重新添加队列，查询
+        if result['success'] is True and result['is_query'] == 1:
+            return
+        # 发货成功收货成功，数据入库，出队
+        elif result['success'] is True and result['is_query'] == 0:
+            sql = "insert into t_acc_order (accesstoken, amount, goods_url, goods_id, orderno, order_number, pdduid, notifyurl, callbackurl," \
+                  " extends, sign, order_type, pay_url, order_sn, status, is_query, memberid, passid, is_use, create_time, update_time)" \
+                  " values ('{}', '{}','{}', '{}','{}','{}', '{}','{}', '{}', '{}', '{}','{}', '{}','{}', '{}','{}', '{}', '{}','{}','{}', '{}')". \
+                format(result['accesstoken'], result['amount'], result['goods_url'], result['goods_id'],
+                       result['orderno'],
+                       result['order_number'], result['pdduid'], result['notifyurl'], result['callbackurl'],
+                       result['extends'],
+                       result['sign'], result['order_type'], result['pay_url'], result['order_sn'], result['status'],
+                       result['is_query'], result['memberid'], result['passid'], result['is_use'],
+                       result['create_time'].strftime('%Y-%m-%d %H:%M:%S'), result['create_time'])
+            db_insert(sql)
+        # 其它情况下，重新添加队列，查询
+        else:
+            r.put(result)
 
 
 if __name__ == '__main__':
@@ -210,4 +240,4 @@ if __name__ == '__main__':
             logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'receipt', 'Admin')
             time.sleep(10)
             continue
-        time.sleep(5)
+        time.sleep(1)

@@ -4,6 +4,7 @@ import requests
 import urllib3
 import hashlib
 from redis_queue import RedisQueue
+from bs4 import BeautifulSoup
 
 urllib3.disable_warnings()
 import re, datetime, time
@@ -25,14 +26,18 @@ def check_pay(order_sn, pdduid, accesstoken):
     }
     url = 'https://mobile.yangkeduo.com/personal_order_result.html?page=1&size=10&keyWord={}'.format(order_sn)
     res = requests.get(url, headers=headers, verify=False)
-
     if 'window.isUseHttps= false' in res.text or 'window.isUseHttps' not in res.text:
         logger.log('ERROR', '查询订单:[{}]错误'.format(order_sn), 'status', pdduid)
         return '查询订单:[{}]错误'.format(order_sn)
     else:
         n_order_sn = re.findall('"order_sn":"(.*?)",', res.text)[0]
         if order_sn == n_order_sn:
-            pay_status = re.findall('"order_status_desc":"(.*?)",', res.text)[0]
+            # try:
+            #     pay_status = re.findall('"order_status_desc":"(.*?)",', res.text)[0]
+            # except:
+            #     pay_status = re.findall('"order_status_prompt":"(.*?)",', res.text)[0]
+            soup = BeautifulSoup(res.text, 'html.parser')
+            pay_status = soup.find('p', class_='order-status').get_text().strip()
             logger.log('INFO', '获取订单:[{}]信息成功, 支付状态: {}'.format(n_order_sn, pay_status), 'status', pdduid)
             return pay_status
         else:
@@ -129,4 +134,4 @@ if __name__ == '__main__':
             logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'status', 'Admin')
             time.sleep(10)
             continue
-        time.sleep(5)
+        time.sleep(1)

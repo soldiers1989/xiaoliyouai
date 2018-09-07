@@ -161,17 +161,6 @@ def get_goods_id(url, cookie=None):
 
 def get_shipping_address(pdduid, accesstoken):
     headers['accesstoken'] = accesstoken
-    address_id = '0'
-    # for i in range(2):
-    #     delete_url = 'http://apiv3.yangkeduo.com/address/{}?pdduid={}'.format(address_id, pdduid)
-    #     res = requests.delete(delete_url, headers=headers, verify=False)
-    #     if '地址错误' in res.text or 'error_msg' in res.text:
-    #         break
-    #     if res.json()['default_id'] == '0' or res.json()['default_id'] == 0:
-    #         break
-    #     else:
-    #         address_id = res.json()['default_id']
-    #         continue
     addresses_url = 'https://api.pinduoduo.com/addresses?pdduid={}'.format(pdduid)
     response = requests.get(addresses_url, headers=headers, verify=False)
 
