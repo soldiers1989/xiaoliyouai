@@ -4,6 +4,7 @@ import csv
 import requests
 from mysql_db import db_query
 import datetime
+
 today = datetime.datetime.now().strftime('%Y-%m-%d')
 end_time = today + ' 23:59:59'
 
@@ -34,11 +35,10 @@ def order_down():
             "callbackurl": result[9],
             "extends": result[10]
         }
-        # url = 'http://127.0.0.1:8000/api/pay/'
-        # response = requests.post(url, json=data)
-        # print(response.json())
-        print(data)
-
+        url = 'http://127.0.0.1:8000/api/pay/'
+        response = requests.post(url, json=data)
+        print(response.json())
+       
 
 # TODO 我的订单
 def order():
@@ -67,7 +67,7 @@ def order():
             "pay_url": result[5],
             "status": status,
             "evalute": evalute
-         }
+        }
         url = 'http://127.0.0.1:8000/api/order/'
         response = requests.post(url, json=data)
         print(response.json())
@@ -75,7 +75,8 @@ def order():
 
 # TODO 我的评价
 def evaluate():
-    sql = "select distinct pdduid, goods_id, goods_url, order_sn from t_acc_order where status=3 and  create_time BETWEEN '{}' and '{}' ".format(today, end_time)
+    sql = "select distinct pdduid, goods_id, goods_url, order_sn from t_acc_order where status=3 and  create_time BETWEEN '{}' and '{}' ".format(
+        today, end_time)
     result_list = db_query(sql)
     for result in result_list:
         data = {
@@ -85,10 +86,11 @@ def evaluate():
             "order_sn": result[3],
             "content": "商品太好了，买了几百次",
             "over": '是'
-            }
+        }
         url = 'http://127.0.0.1:8000/api/evaluate/'
         response = requests.post(url, json=data)
         print(response.json())
+
 
 if __name__ == '__main__':
     order_down()
