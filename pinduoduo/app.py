@@ -6,8 +6,11 @@ from redis_queue import RedisQueue
 
 app = Flask(__name__)
 
-# 爬虫部分
+# 下单部分
 from pdd_spider import main
+
+# 查询部分
+from pdd_query import pass_query
 
 q = RedisQueue('pdd')
 
@@ -26,6 +29,31 @@ def test():
 def test_pay():
     pay_url = 'weixin://wap/pay?prepayid%3Dwx031910501112006e331180633831409305&package=1777101486&noncestr=1535973050&sign=6dffd3b987985fb082663121c1171b21'
     return render_template('pay.html', pay_url=pay_url)
+
+
+@app.route('/api/query', methods=['GET', 'POST'])
+def query():
+    if request.method == 'GET':
+        return jsonify({'code': 0, 'msg': '请求方式必须为POST'})
+    else:
+        form_data = request.form.to_dict()
+        pdduid = form_data['pdduid'] if 'pdduid' in form_data else ''
+        orderno = form_data['orderno'] if 'orderno' in form_data else ''
+        order_sn = form_data['order_sn'] if 'order_sn' in form_data else ''
+        key = 'nLSm8fdKCY6ZeysRjrzaHUgQXMp2vlJd'
+        a = 'order_sn={}&orderno={}&pdduid={}&key={}'.format(order_sn, orderno, pdduid, key)
+        hl = hashlib.md5()
+        hl.update(str(a).encode('utf-8'))
+        encrypt = str(hl.hexdigest()).upper()
+        print(encrypt)
+        if form_data['sign'] == encrypt:
+            pdduid = None if pdduid == '' else pdduid
+            orderno = None if orderno == '' else orderno
+            order_sn = None if order_sn == '' else order_sn
+            result = pass_query(pdduid, orderno, order_sn)
+        else:
+            result = {'code': 0, 'msg': '签名失败'}
+        return jsonify(result)
 
 
 @app.route('/api/pay', methods=['GET', 'POST'])

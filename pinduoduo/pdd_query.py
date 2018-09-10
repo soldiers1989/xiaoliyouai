@@ -3,6 +3,7 @@ __author__ = '张全亮'
 # 可以封装成函数，方便 Python 的程序调用\
 from mysql_db import db_query, db_insert
 from redis_queue import RedisQueue
+import datetime
 
 q = RedisQueue('pdd')
 r = RedisQueue('rec')
@@ -77,6 +78,47 @@ def pass_date(**kwargs):
         print(r_result)
 
 
+def pass_query(pdduid=None, orderno=None, order_sn=None):
+    today = datetime.datetime.now().strftime('%Y-%m-%d')
+    end_time = today + ' 23:59:59'
+    if pdduid is None and orderno is None and order_sn is None:
+        sql = "select orderno, status from t_acc_order  where create_time BETWEEN '{}' and '{}' ".format(today,
+                                                                                                         end_time)
+    elif pdduid is None and orderno is None and order_sn is not None:
+        sql = "select orderno, status from t_acc_order where order_sn='{}'".format(order_sn)
+    elif pdduid is None and orderno is not None and order_sn is None:
+        sql = "select orderno, status from t_acc_order where orderno='{}'".format(orderno)
+    elif pdduid is not None and orderno is None and order_sn is None:
+        sql = "select orderno, status from t_acc_order where pdduid='{}'".format(pdduid)
+    elif pdduid is not None and orderno is not None and order_sn is None:
+        sql = "select orderno, status from t_acc_order where pdduid='{}' and orderno='{}'".format(pdduid, orderno)
+    elif pdduid is not None and orderno is None and order_sn is not None:
+        sql = "select orderno, status from t_acc_order where pdduid='{}' and order_sn='{}'".format(pdduid, order_sn)
+    elif pdduid is None and orderno is not None and order_sn is not None:
+        sql = "select orderno, status from t_acc_order where orderno='{}' and order_sn='{}'".format(orderno, order_sn)
+    else:
+        sql = "select orderno, status from t_acc_order where pdduid='{}' and orderno='{}' and order_sn='{}'".format(
+            pdduid, orderno, order_sn)
+    try:
+        q_result = db_query(sql)
+        result = []
+        for j in q_result:
+            result_dict = {}
+            result_dict['code'] = 1
+            result_dict['orderno'] = j[0]
+            result_dict['status'] = j[1]
+            result.append(result_dict)
+        if len(result) == 0:
+            result = {'code': 0, 'msg': '未找到满足条件的订单!'}
+        return result
+    except:
+        return {'code': 0, 'msg': '查询错误!'}
+
+
 if __name__ == '__main__':
-    # pass_field(is_query=0, status=0)
-    pass_date(start_date='2018-01-01', end_date='2018-10-08')
+    result = pass_query()
+    a = []
+    for j in result:
+        a.append(j['orderno'])
+
+    print(a)
