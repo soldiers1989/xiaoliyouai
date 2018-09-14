@@ -11,8 +11,8 @@ from logger import Logger
 from mysql_db import db_insert
 from redis_queue import RedisQueue
 
-q = RedisQueue('pdd')
-r = RedisQueue('rec')
+pdd = RedisQueue('pdd')
+pdd_rec = RedisQueue('pdd_rec')
 logger = Logger()
 
 """自动5星好评"""
@@ -81,7 +81,7 @@ def check_pay(order_sn, pdduid, accesstoken):
     res = requests.get(url, headers=headers, verify=False)
 
     if 'window.isUseHttps= false' in res.text or 'window.isUseHttps' not in res.text:
-        logger.log('ERROR', '查询订单:[{}]错误'.format(order_sn), 'receipt', pdduid)
+        logger.log('ERROR', '查询订单:[{}]错误'.format(order_sn), 'pdd_receipt', pdduid)
         return '查询订单:[{}]错误'.format(order_sn)
     else:
         n_order_sn = re.findall('"order_sn":"(.*?)",', res.text)[0]
@@ -92,10 +92,10 @@ def check_pay(order_sn, pdduid, accesstoken):
             #     pay_status = re.findall('"order_status_prompt":"(.*?)",', res.text)[0]
             soup = BeautifulSoup(res.text, 'html.parser')
             pay_status = soup.find('p', class_='order-status').get_text().strip()
-            logger.log('INFO', '获取订单:[{}]信息成功, 支付状态: {}'.format(n_order_sn, pay_status), 'status', pdduid)
+            logger.log('INFO', '获取订单:[{}]信息成功, 支付状态: {}'.format(n_order_sn, pay_status), 'pdd_receipt', pdduid)
             return pay_status
         else:
-            logger.log('ERROR', '查询订单:[{}]错误'.format(order_sn), 'receipt', pdduid)
+            logger.log('ERROR', '查询订单:[{}]错误'.format(order_sn), 'pdd_receipt', pdduid)
             return '查询订单:[{}]错误, 请确认!'.format(order_sn)
 
 
@@ -121,18 +121,18 @@ def confirm_delivery(order_sn, passid):
                  "isVirtualGoods": "true"}
         response2 = requests.post(url2, json=data2, headers=headers, verify=False)
         if 'success' in response2.json():
-            logger.log('INFO', '订单:[{}]已经自动发货了'.format(order_sn), 'receipt', 'Admin')
+            logger.log('INFO', '订单:[{}]已经自动发货了'.format(order_sn), 'pdd_receipt', 'Admin')
             return True
         else:
             print(response2.json())
-            logger.log('ERROR', '订单:[{}]发货失败, 请联系管理员'.format(order_sn), 'receipt', 'Admin')
+            logger.log('ERROR', '订单:[{}]发货失败, 请联系管理员'.format(order_sn), 'pdd_receipt', 'Admin')
             return False
     elif '会话已过期' in response1.json():
-        logger.log('DEBUG', '订单:[{}]发货失败, 请更新passid'.format(order_sn), 'receipt', 'Admin')
+        logger.log('DEBUG', '订单:[{}]发货失败, 请更新passid'.format(order_sn), 'pdd_receipt', 'Admin')
         return False
     else:
         print(response1.json())
-        logger.log('ERROR', '订单:[{}]发货失败, 请联系管理员'.format(order_sn), 'receipt', 'Admin')
+        logger.log('ERROR', '订单:[{}]发货失败, 请联系管理员'.format(order_sn), 'pdd_receipt', 'Admin')
         return False
 
 
@@ -158,48 +158,50 @@ def check(result):
         result['success'] = True
         return result
     elif '待支付' in status:
-        q.put(result)
+        pdd.put(result)
         return result
     elif '待发货' in status:
         """自动发货"""
         is_ok = confirm_delivery(q_order_sn, passid)
         if is_ok is False:
-            r.put(result)
+            pdd_rec.put(result)
             return result
     elif '待收货' in status:
         pass
     else:
-        logger.log('ERROR', '订单:[{}]未考虑到的订单类型: {}'.format(q_order_sn, status), 'receipt', pdduid)
+        logger.log('ERROR', '订单:[{}]未考虑到的订单类型: {}'.format(q_order_sn, status), 'pdd_receipt', pdduid)
 
+    """自动确认收货"""
     if confirm_receipt(accesstoken, pdduid, q_order_sn):
-        logger.log('INFO', '订单:[{}]已确认收货'.format(q_order_sn), 'receipt', pdduid)
+        logger.log('INFO', '订单:[{}]已确认收货'.format(q_order_sn), 'pdd_receipt', pdduid)
+        """自动5星好评"""
         if evaluation(pdduid, accesstoken, goods_id, q_order_sn):
-            logger.log('INFO', '订单:[{}]已5星好评'.format(q_order_sn), 'receipt', pdduid)
+            logger.log('INFO', '订单:[{}]已5星好评'.format(q_order_sn), 'pdd_receipt', pdduid)
         else:
-            logger.log('DEBUG', '订单:[{}]5星好评错误'.format(q_order_sn), 'receipt', pdduid)
+            logger.log('DEBUG', '订单:[{}]5星好评错误'.format(q_order_sn), 'pdd_receipt', pdduid)
         update_time2 = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         result['status'] = 3
         result['is_query'] = 0
         result['update_time'] = update_time2
         result['success'] = True
     else:
-        r.put(result)
-        logger.log('ERROR', '订单:[{}]收货错误'.format(q_order_sn), 'receipt', pdduid)
+        pdd_rec.put(result)
+        logger.log('ERROR', '订单:[{}]收货错误'.format(q_order_sn), 'pdd_receipt', pdduid)
     return result
 
 
 """拼多多确认收货入口函数"""
 
 
-def main():
-    r_result = r.get_nowait()
+def pdd_main():
+    r_result = pdd_rec.get_nowait()
     if not r_result:
         return
     r_dict = eval(r_result)
 
     # 状态为已失效和不查询的时候，保持这笔失效订单
     if r_dict['status'] == 0 and r_dict['is_query'] == 0:
-        sql = "insert into t_acc_order (accesstoken, amount, goods_url, goods_id, orderno, order_number, pdduid, notifyurl, callbackurl," \
+        sql = "insert into t_pdd_order (accesstoken, amount, goods_url, goods_id, orderno, order_number, user_id, notifyurl, callbackurl," \
               " extends, sign, order_type, pay_url, order_sn, status, is_query, memberid, passid, is_use, create_time, update_time)" \
               " values ('{}', '{}','{}', '{}','{}','{}', '{}','{}', '{}', '{}', '{}','{}', '{}','{}', '{}','{}', '{}', '{}','{}','{}', '{}')". \
             format(r_dict['accesstoken'], r_dict['amount'], r_dict['goods_url'], r_dict['goods_id'], r_dict['orderno'],
@@ -216,7 +218,7 @@ def main():
             return
         # 发货成功收货成功，数据入库，出队
         elif result['success'] is True and result['is_query'] == 0:
-            sql = "insert into t_acc_order (accesstoken, amount, goods_url, goods_id, orderno, order_number, pdduid, notifyurl, callbackurl," \
+            sql = "insert into t_pdd_order (accesstoken, amount, goods_url, goods_id, orderno, order_number, user_id, notifyurl, callbackurl," \
                   " extends, sign, order_type, pay_url, order_sn, status, is_query, memberid, passid, is_use, create_time, update_time)" \
                   " values ('{}', '{}','{}', '{}','{}','{}', '{}','{}', '{}', '{}', '{}','{}', '{}','{}', '{}','{}', '{}', '{}','{}','{}', '{}')". \
                 format(result['accesstoken'], result['amount'], result['goods_url'], result['goods_id'],
@@ -229,13 +231,13 @@ def main():
             db_insert(sql)
         # 其它情况下，重新添加队列，查询
         else:
-            r.put(result)
+            pdd_rec.put(result)
 
 
 if __name__ == '__main__':
-    logger.log('INFO', '确认收货脚本启动...', 'receipt', 'Admin')
+    logger.log('INFO', '确认收货脚本启动...', 'pdd_receipt', 'Admin')
     while True:
-        qsize = r.qsize()
+        qsize = pdd_rec.qsize()
         if qsize == 0:
             time.sleep(3)
             continue
@@ -245,9 +247,9 @@ if __name__ == '__main__':
             pool = Pool(processes=100)
         for i in range(qsize):
             try:
-                pool.apply_async(main)
+                pool.apply_async(pdd_main)
             except Exception as ex:
-                logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'status', 'Admin')
+                logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'pdd_receipt', 'Admin')
                 time.sleep(10)
                 continue
         pool.close()

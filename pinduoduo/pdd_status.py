@@ -11,8 +11,8 @@ urllib3.disable_warnings()
 import re, datetime, time
 from logger import Logger
 
-q = RedisQueue('pdd')
-r = RedisQueue('rec')
+pdd = RedisQueue('pdd')
+pdd_rec = RedisQueue('pdd_rec')
 logger = Logger()
 
 """校验支付状态"""
@@ -28,21 +28,17 @@ def check_pay(order_sn, pdduid, accesstoken):
     url = 'https://mobile.yangkeduo.com/personal_order_result.html?page=1&size=10&keyWord={}'.format(order_sn)
     res = requests.get(url, headers=headers, verify=False)
     if 'window.isUseHttps= false' in res.text or 'window.isUseHttps' not in res.text:
-        logger.log('ERROR', '查询订单:[{}]错误'.format(order_sn), 'status', pdduid)
+        logger.log('ERROR', '查询订单:[{}]错误'.format(order_sn), 'pdd_status', pdduid)
         return '查询订单:[{}]错误'.format(order_sn)
     else:
         n_order_sn = re.findall('"order_sn":"(.*?)",', res.text)[0]
         if order_sn == n_order_sn:
-            # try:
-            #     pay_status = re.findall('"order_status_desc":"(.*?)",', res.text)[0]
-            # except:
-            #     pay_status = re.findall('"order_status_prompt":"(.*?)",', res.text)[0]
             soup = BeautifulSoup(res.text, 'html.parser')
             pay_status = soup.find('p', class_='order-status').get_text().strip()
-            logger.log('INFO', '获取订单:[{}]信息成功, 支付状态: {}'.format(n_order_sn, pay_status), 'status', pdduid)
+            logger.log('INFO', '获取订单:[{}]信息成功, 支付状态: {}'.format(n_order_sn, pay_status), 'pdd_status', pdduid)
             return pay_status
         else:
-            logger.log('ERROR', '查询订单:[{}]错误'.format(order_sn), 'status', pdduid)
+            logger.log('ERROR', '查询订单:[{}]错误'.format(order_sn), 'pdd_status', pdduid)
             return '查询订单:[{}]错误, 请确认!'.format(order_sn)
 
 
@@ -75,7 +71,7 @@ def check(result):
         hl.update(str(a).encode('utf-8'))
         encrypt = str(hl.hexdigest()).upper()
 
-        logger.log('INFO', '加密后的字符串: {}'.format(encrypt), 'status', pdduid)
+        logger.log('INFO', '加密后的字符串: {}'.format(encrypt), 'pdd_status', pdduid)
         data = {
             "code": 1,
             "msg": "",
@@ -90,13 +86,13 @@ def check(result):
             response = requests.post(notifyurl, data=data, verify=False)
             print('回调返回: ', response.json())
             if response.json()['code'] == 1:
-                logger.log('INFO', '订单:[{}]支付结果正常返回'.format(q_order_sn), 'status', pdduid)
+                logger.log('INFO', '订单:[{}]支付结果正常返回'.format(q_order_sn), 'pdd_status', pdduid)
                 return result
             if j == 5:
-                logger.log('ERROR', '订单:[{}]支付结果未正常返回'.format(q_order_sn), 'status', pdduid)
+                logger.log('ERROR', '订单:[{}]支付结果未正常返回'.format(q_order_sn), 'pdd_status', pdduid)
                 return result
             time.sleep(300)
-            logger.log('INFO', '订单:[{}]在{}分钟内未正确回调'.format(q_order_sn, (j + 1) * 5), 'status', pdduid)
+            logger.log('INFO', '订单:[{}]在{}分钟内未正确回调'.format(q_order_sn, (j + 1) * 5), 'pdd_status', pdduid)
     else:
         return result
 
@@ -104,8 +100,8 @@ def check(result):
 """拼多多校验订单状态入口函数"""
 
 
-def main():
-    q_result = q.get_nowait()
+def pdd_main():
+    q_result = pdd.get_nowait()
     if not q_result:
         return
     q_dict = eval(q_result)
@@ -114,22 +110,23 @@ def main():
     # 如果6分钟后的时间和当前时间比较，如果比现在的时间大，则不添加队列
     if q_time > datetime.datetime.now() and result['success'] is False:
         logger.log('INFO', '订单:[{}]支付状态未改变, 重新添加进队列:[pdd]'.format(result['order_sn']), 'queue', result['pdduid'])
-        q.put(q_result)
+        pdd.put(q_result)
     else:
         if result['success']:
-            logger.log('INFO', '订单:[{}]支付状态已改变, 添加进队列:[rec]'.format(result['order_sn']), 'queue', result['pdduid'])
-            r.put(result)
+            logger.log('INFO', '订单:[{}]支付状态已改变, 添加进队列:[pdd_rec]'.format(result['order_sn']), 'queue', result['pdduid'])
+            pdd_rec.put(result)
         else:
             result['status'] = 0
             result['is_query'] = 0
-            logger.log('DEBUG', '订单:[{}]6分钟内支付状态未改变, 添加进队列:[rec]'.format(result['order_sn']), 'queue', result['pdduid'])
-            r.put(result)
+            logger.log('DEBUG', '订单:[{}]6分钟内支付状态未改变, 添加进队列:[pdd_rec]'.format(result['order_sn']), 'queue',
+                       result['pdduid'])
+            pdd_rec.put(result)
 
 
 if __name__ == '__main__':
-    logger.log('INFO', '检测订单脚本启动...', 'status', 'Admin')
+    logger.log('INFO', '检测订单脚本启动...', 'pdd_status', 'Admin')
     while True:
-        qsize = q.qsize()
+        qsize = pdd.qsize()
         if qsize == 0:
             time.sleep(3)
             continue
@@ -139,9 +136,9 @@ if __name__ == '__main__':
             pool = Pool(processes=100)
         for i in range(qsize):
             try:
-                pool.apply_async(main)
+                pool.apply_async(pdd_main)
             except Exception as ex:
-                logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'status', 'Admin')
+                logger.log('ERROR', '程序异常，异常原因: [{}],重启...'.format(ex), 'pdd_status', 'Admin')
                 time.sleep(10)
                 continue
         pool.close()

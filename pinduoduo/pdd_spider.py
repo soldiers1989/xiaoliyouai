@@ -74,7 +74,7 @@ def pay(alipay, address_id, pdduid, accesstoken, sku_id, group_id, goods_id, ord
             continue
 
     if alipay:
-        logger.log('INFO', '订单:[{}]支付方式: 支付宝支付'.format(order_sn), 'spider', pdduid)
+        logger.log('INFO', '订单:[{}]支付方式: 支付宝支付'.format(order_sn), 'pdd_spider', pdduid)
         url2 = 'https://api.pinduoduo.com/order/prepay?pdduid={}'.format(pdduid)
         t_data = {
             "order_sn": order_sn,
@@ -92,7 +92,7 @@ def pay(alipay, address_id, pdduid, accesstoken, sku_id, group_id, goods_id, ord
         response = requests.get(dingdan_url, headers=headers, verify=False)
         pay_url = response.url
     else:
-        logger.log('INFO', '订单:[{}]支付方式: 微信支付'.format(order_sn), 'spider', pdduid)
+        logger.log('INFO', '订单:[{}]支付方式: 微信支付'.format(order_sn), 'pdd_spider', pdduid)
         url2 = 'https://api.pinduoduo.com/order/prepay?pdduid={}'.format(pdduid)
         t_data = {
             "order_sn": order_sn,
@@ -131,7 +131,7 @@ def get_address_id(sku_id, group_id, goods_id, amount, goods_number=1):
     if float(price) == float(amount):
         return addressId
     else:
-        logger.log('DEBUG', '订单金额不一致, 给定金额:{}，实际支付金额:{}'.format(amount, price), 'spider', pdduid)
+        logger.log('DEBUG', '订单金额不一致, 给定金额:{}，实际支付金额:{}'.format(amount, price), 'pdd_spider', pdduid)
         return '订单金额不一致, 给定金额:{}，实际支付金额:{}'.format(amount, price)
 
 
@@ -147,9 +147,6 @@ def get_goods_id(url, cookie=None):
     html = res.text
     if cookie is not None:
         headers['Cookie'] = cookie
-    # sku_id = random.choice(re.findall('"skuID":(.*?),', html))
-    # group_id = random.choice(re.findall('"groupID":(.*?),', html))
-    # goods_id = random.choice(re.findall('"goodsID":"(.*?)",', html))
     sku_id = re.findall('"skuID":(.*?),', html)[0]
     group_id = re.findall('"groupID":(.*?),', html)[0]
     goods_id = re.findall('"goodsID":"(.*?)",', html)[0]
@@ -166,7 +163,7 @@ def get_shipping_address(pdduid, accesstoken):
 
     if len(response.json()) == 0:
         url = 'https://api.pinduoduo.com/address?pdduid={}'.format(pdduid)
-        f = open('用户地址.csv', 'r', encoding='utf-8')
+        f = open('pdd用户地址.csv', 'r', encoding='utf-8')
         b = f.readlines()[random.randint(0, 6500)]
         name = str(b.split(',')[0]).replace('"', '').replace("'", '')
         phone = str(b.split(',')[1]).replace('"', '').replace("'", '')
@@ -186,14 +183,14 @@ def get_shipping_address(pdduid, accesstoken):
         }
         add_response = requests.post(url, headers=headers, json=add_data, verify=False)
         if 'server_time' in add_response.json():
-            logger.log('INFO', '新增收货地址成功', 'spider', pdduid)
+            logger.log('INFO', '新增收货地址成功', 'pdd_spider', pdduid)
             return True, '新增收货地址成功'
         else:
-            logger.log('ERROR', '新增收货地址失败', 'spider', pdduid)
+            logger.log('ERROR', '新增收货地址失败', 'pdd_spider', pdduid)
             return False, '新增收货地址失败'
     else:
         if 'error_code' in response.json():
-            logger.log('ERROR', 'access_token错误，请更新.', 'spider', pdduid)
+            logger.log('ERROR', 'access_token错误，请更新.', 'pdd_spider', pdduid)
             return False, 'access_token错误，请更新.'
         return True, '已存在收货地址'
 
@@ -201,7 +198,7 @@ def get_shipping_address(pdduid, accesstoken):
 """拼多多下单入口函数"""
 
 
-def main(pdduid, accesstoken, goods_url, amount, order_number):
+def pdd_main(pdduid, accesstoken, goods_url, amount, order_number):
     order_number = int(order_number)
     # TODO goods_url, accesstoken, pdduid
     # 是否支付宝支付， True为是
@@ -221,24 +218,20 @@ def main(pdduid, accesstoken, goods_url, amount, order_number):
         order_sn, pay_url = pay(alipay, address_id, pdduid, accesstoken, sku_id, group_id, goods_id, order_number)
         if '错误' in pay_url:
             return {'code': 0, 'pay_url': '', 'order_sn': '', 'msg': pay_url, 'goods_id': 0}
-        logger.log('INFO', '订单:[{}]支付链接:[{}]'.format(order_sn, pay_url), 'spider', pdduid)
+        logger.log('INFO', '订单:[{}]支付链接:[{}]'.format(order_sn, pay_url), 'pdd_spider', pdduid)
         return {'code': 1, 'pay_url': pay_url, 'order_sn': order_sn, 'msg': '', 'goods_id': goods_id}
     elif '订单金额不一致' in address_id:
         return {'code': 0, 'pay_url': '', 'order_sn': '', 'msg': address_id, 'goods_id': 0}
     else:
-        logger.log('ERROR', '未获取到地区ID, 更新accesstoken后重试', 'spider', pdduid)
+        logger.log('ERROR', '未获取到地区ID, 更新accesstoken后重试', 'pdd_spider', pdduid)
         return {'code': 0, 'pay_url': '', 'order_sn': '', 'msg': address_id, 'goods_id': 0}
 
 
 if __name__ == '__main__':
     goods_url = 'https://mobile.yangkeduo.com/goods2.html?goods_id=2723075938&page_from=0&share_uin=ZJZOSVZU6NLHPAJCLHXLBNVJ54_GEXDA&_wv=41729&_wvx=10&refer_share_id=1oKRTkcPdybPDQJE0rKgy7B85uMgVuT6&refer_share_uid=3636814957&refer_share_channel=message'
-    pdduid = 15179833772
-    accesstoken = 'IMQP2QJJ5OZCZAPXDGPV7CJQQTVAA4VYKDAGUAH3RKRAN4NQJX7A101a825'
-    amount = 2000
-    order_number = 400
-    a = main(pdduid, accesstoken, goods_url, amount, order_number)
-    from redis_queue import RedisQueue
-
-    q = RedisQueue('pdd')  # 新建队列名为rq
-    q.put(a)
+    pdduid = 17083602650
+    accesstoken = 'LTEDBNNYMMZOJE6MVOIJ3X3SYLVAXZ43DF6GPUD37TXQRUY5BI2A1030fa1'
+    amount = 5
+    order_number = 1
+    a = pdd_main(pdduid, accesstoken, goods_url, amount, order_number)
     print(a)
