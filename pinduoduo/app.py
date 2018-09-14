@@ -11,7 +11,8 @@ from pdd_spider import pdd_main
 from yz_spider import yz_main
 
 # 查询部分
-from pdd_query import pass_query
+from pdd_query import pdd_pass_query
+from yz_query import yz_pass_query
 
 pdd = RedisQueue('pdd')
 yz = RedisQueue('yz')
@@ -43,8 +44,11 @@ def test_pay():
     return render_template('pay.html', pay_url=pay_url)
 
 
-@app.route('/api/query', methods=['GET', 'POST'])
-def query():
+"""拼多多查询接口"""
+
+
+@app.route('/api/query/pdd', methods=['GET', 'POST'])
+def pdd_query():
     if request.method == 'GET':
         return jsonify({'code': 0, 'msg': '请求方式必须为POST'})
     else:
@@ -62,7 +66,35 @@ def query():
             pdduid = None if pdduid == '' else pdduid
             orderno = None if orderno == '' else orderno
             order_sn = None if order_sn == '' else order_sn
-            result = pass_query(pdduid, orderno, order_sn)
+            result = pdd_pass_query(pdduid, orderno, order_sn)
+        else:
+            result = {'code': 0, 'msg': '签名失败'}
+        return jsonify(result)
+
+
+"""有赞查询接口"""
+
+
+@app.route('/api/query/yz', methods=['GET', 'POST'])
+def yz_query():
+    if request.method == 'GET':
+        return jsonify({'code': 0, 'msg': '请求方式必须为POST'})
+    else:
+        form_data = request.form.to_dict()
+        pdduid = form_data['pdduid'] if 'pdduid' in form_data else ''
+        orderno = form_data['orderno'] if 'orderno' in form_data else ''
+        order_sn = form_data['order_sn'] if 'order_sn' in form_data else ''
+        key = 'nLSm8fdKCY6ZeysRjrzaHUgQXMp2vlJd'
+        a = 'order_sn={}&orderno={}&pdduid={}&key={}'.format(order_sn, orderno, pdduid, key)
+        hl = hashlib.md5()
+        hl.update(str(a).encode('utf-8'))
+        encrypt = str(hl.hexdigest()).upper()
+        print(encrypt)
+        if form_data['sign'] == encrypt:
+            pdduid = None if pdduid == '' else pdduid
+            orderno = None if orderno == '' else orderno
+            order_sn = None if order_sn == '' else order_sn
+            result = yz_pass_query(pdduid, orderno, order_sn)
         else:
             result = {'code': 0, 'msg': '签名失败'}
         return jsonify(result)
