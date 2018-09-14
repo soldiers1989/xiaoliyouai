@@ -10,9 +10,13 @@ end_time = today + ' 23:59:59'
 
 
 # TODO 我的下单
-def order_down():
-    sql = "select DISTINCT pdduid, amount, accesstoken, goods_url,order_number, orderno,  notifyurl, sign, goods_id, callbackurl,extends, is_use  from t_acc_order" \
-          " where create_time BETWEEN '{}' and '{}' ".format(today, end_time)
+def order_down(table):
+    if table == 't_pdd_order':
+        sql = "select DISTINCT user_id, amount, accesstoken, goods_url,order_number, orderno,  notifyurl, sign, goods_id, callbackurl,extends, is_use  from {}" \
+              " where create_time BETWEEN '{}' and '{}' ".format(table, today, end_time)
+    else:
+        sql = "select DISTINCT user_id, amount, kdtsessionid, goods_url,order_number, orderno,  notifyurl, sign, goods_id, callbackurl,extends, is_use  from {}" \
+              " where create_time BETWEEN '{}' and '{}' ".format(table, today, end_time)
     result_list = db_query(sql)
 
     for result in result_list:
@@ -35,15 +39,15 @@ def order_down():
             "callbackurl": result[9],
             "extends": result[10]
         }
-        url = 'http://127.0.0.1:8000/api/pay/'
+        url = 'http://127.0.0.1:8000/api/orderdown/'
         response = requests.post(url, json=data)
         print(response.json())
-       
+
 
 # TODO 我的订单
-def order():
-    sql = "select DISTINCT pdduid, orderno, order_sn, amount, order_type, pay_url,  status from t_acc_order" \
-          " where create_time BETWEEN '{}' and '{}' ".format(today, end_time)
+def order(table):
+    sql = "select DISTINCT user_id, orderno, order_sn, amount, order_type, pay_url,  status from {}" \
+          " where create_time BETWEEN '{}' and '{}' ".format(table, today, end_time)
     result_list = db_query(sql)
     for result in result_list:
         if result[6] == 0:
@@ -74,9 +78,9 @@ def order():
 
 
 # TODO 我的评价
-def evaluate():
-    sql = "select distinct pdduid, goods_id, goods_url, order_sn from t_acc_order where status=3 and  create_time BETWEEN '{}' and '{}' ".format(
-        today, end_time)
+def evaluate(table):
+    sql = "select distinct user_id, goods_id, goods_url, order_sn from {} where status=3 and  create_time BETWEEN '{}' and '{}' ".format(
+        table, today, end_time)
     result_list = db_query(sql)
     for result in result_list:
         data = {
@@ -93,6 +97,8 @@ def evaluate():
 
 
 if __name__ == '__main__':
-    order_down()
-    order()
-    evaluate()
+    query_list = ['t_pdd_order', 't_yz_order']
+    for table in query_list:
+        order_down(table)
+        order(table)
+        evaluate(table)
