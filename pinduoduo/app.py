@@ -24,6 +24,9 @@ def pdd_spider(pdduid, accesstoken, goods_url, amount, order_number):
     return result
 
 
+"""有赞下单爬虫"""
+
+
 def yz_spider(pdduid, kdtsessionid, goods_url, amount, order_number):
     result = yz_main(pdduid, kdtsessionid, goods_url, amount, order_number)
     return result
